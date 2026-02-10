@@ -22,7 +22,6 @@
 #include "MiracastPlayerImplementation.h"
 
 #include "UtilsJsonRpc.h"
-#include "UtilsIarm.h"
 
 #include "UtilsSynchroIarm.hpp"
 
