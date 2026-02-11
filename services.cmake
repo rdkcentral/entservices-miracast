@@ -19,19 +19,9 @@
 # features
 #
 
-add_definitions (-DUSE_IARM)
-option(USE_IARM "USE_IARM" ON)
 
-add_definitions (-DUSE_IARM_BUS)
-option(USE_IARM_BUS "USE_IARM_BUS" ON)
 
-add_definitions (-DUSE_IARMBUS)
 
-add_definitions (-DHAS_API_SYSTEM)
-add_definitions (-DHAS_API_POWERSTATE)
 
-add_definitions (-DENABLE_DEEP_SLEEP)
 
-add_definitions (-DHAS_FRONT_PANEL)
-option(HAS_FRONT_PANEL "HAS_FRONT_PANEL" ON)
 
