@@ -6,7 +6,7 @@ GITHUB_WORKSPACE="${PWD}"
 ls -la ${GITHUB_WORKSPACE}
 ############################
 # Build entservices-miracast
-echo "buliding entservices-miracast"
+echo "building entservices-miracast"
 
 cd ${GITHUB_WORKSPACE}
 cmake -G Ninja -S "$GITHUB_WORKSPACE" -B build/entservices-miracast \
