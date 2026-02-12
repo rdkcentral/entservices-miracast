@@ -126,18 +126,18 @@ jobs:
           ref: develop
           token: ${{ secrets.RDKCM_RDKE }}
 
-      - name: Checkout entservices-casting
+      - name: Checkout entservices-miracast
         if: ${{ inputs.caller_source == 'local' }}
         uses: actions/checkout@v3
         with:
-          path: entservices-casting
+          path: entservices-miracast
 
-      - name: Checkout entservices-casting-testframework
+      - name: Checkout entservices-miracast-testframework
         if: ${{ inputs.caller_source == 'testframework' }}
         uses: actions/checkout@v3
         with:
-          repository: rdkcentral/entservices-casting
-          path: entservices-casting
+          repository: rdkcentral/entservices-miracast
+          path: entservices-miracast
           ref: develop
 
       - name: Checkout googletest
@@ -352,7 +352,7 @@ jobs:
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/ccec/drivers
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/network
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests
-          -I $GITHUB_WORKSPACE/entservices-casting/helpers
+          -I $GITHUB_WORKSPACE/entservices-miracast/helpers
           -I $GITHUB_WORKSPACE/Thunder/Source
           -I $GITHUB_WORKSPACE/Thunder/Source/core
           -I $GITHUB_WORKSPACE/install/usr/include
@@ -388,11 +388,11 @@ jobs:
           &&
           cmake --install build/mocks
 
-      - name: Build entservices-casting
+      - name: Build entservices-miracast
         run: >
           cmake -G Ninja
-          -S "$GITHUB_WORKSPACE/entservices-casting"
-          -B build/entservices-casting
+          -S "$GITHUB_WORKSPACE/entservices-miracast"
+          -B build/entservices-miracast
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
           -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
           -DCMAKE_CXX_FLAGS="
@@ -430,36 +430,22 @@ jobs:
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/gdialservice.h
           --coverage
           -Wall -Wno-unused-result -Wno-deprecated-declarations -Wno-error=format=
-          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,-wrap,wpa_ctrl_open -Wl,-wrap,wpa_ctrl_request -Wl,-wrap,wpa_ctrl_close -Wl,-wrap,wpa_ctrl_pending -Wl,-wrap,wpa_ctrl_recv -Wl,-wrap,wpa_ctrl_attach
-          -DENABLE_TELEMETRY_LOGGING
-          -DUSE_IARMBUS
-          -DENABLE_SYSTEM_GET_STORE_DEMO_LINK
-          -DENABLE_DEEP_SLEEP
-          -DENABLE_SET_WAKEUP_SRC_CONFIG
-          -DENABLE_THERMAL_PROTECTION
-          -DUSE_DRM_SCREENCAPTURE
-          -DHAS_API_SYSTEM
-          -DHAS_API_POWERSTATE
-          -DHAS_RBUS
-          -DENABLE_DEVICE_MANUFACTURER_INFO"
-          -DCOMCAST_CONFIG=OFF
+          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,-wrap,wpa_ctrl_open -Wl,-wrap,wpa_ctrl_request -Wl,-wrap,wpa_ctrl_close -Wl,-wrap,wpa_ctrl_pending -Wl,-wrap,wpa_ctrl_recv -Wl,-wrap,wpa_ctrl_attach"
           -DCMAKE_DISABLE_FIND_PACKAGE_DS=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_IARMBus=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_Udev=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RFC=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RBus=ON
+          -DCOMCAST_CONFIG=OFF
           -DCMAKE_BUILD_TYPE=Debug
-          -DDS_FOUND=ON
-          -DHAS_FRONT_PANEL=ON
           -DRDK_SERVICES_L1_TEST=ON
           -DUSE_THUNDER_R4=ON
           -DHIDE_NON_EXTERNAL_SYMBOLS=OFF
           -DPLUGIN_MIRACAST=ON
-          -DPLUGIN_XCAST=ON
           &&
-          cmake --build build/entservices-casting -j8
+          cmake --build build/entservices-miracast -j8
           &&
-          cmake --install build/entservices-casting
+          cmake --install build/entservices-miracast
 
       - name: Build entservices-testframework
         run: >
@@ -484,7 +470,7 @@ jobs:
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmmgrs-hal
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/ccec/drivers
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/network
-          -I $GITHUB_WORKSPACE/entservices-casting/helpers
+          -I $GITHUB_WORKSPACE/entservices-miracast/helpers
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests
           -I $GITHUB_WORKSPACE/Thunder/Source
           -I $GITHUB_WORKSPACE/Thunder/Source/core
@@ -506,18 +492,7 @@ jobs:
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/thunder/Communicator.h
           --coverage
           -Wall -Wno-unused-result -Wno-deprecated-declarations -Wno-error=format=
-          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,--no-as-needed
-          -DENABLE_TELEMETRY_LOGGING
-          -DUSE_IARMBUS
-          -DENABLE_SYSTEM_GET_STORE_DEMO_LINK
-          -DENABLE_DEEP_SLEEP
-          -DENABLE_SET_WAKEUP_SRC_CONFIG
-          -DENABLE_THERMAL_PROTECTION
-          -DUSE_DRM_SCREENCAPTURE
-          -DHAS_API_SYSTEM
-          -DHAS_API_POWERSTATE
-          -DHAS_RBUS
-          -DENABLE_DEVICE_MANUFACTURER_INFO"
+          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,--no-as-needed"
           -DCOMCAST_CONFIG=OFF
           -DCMAKE_DISABLE_FIND_PACKAGE_DS=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_IARMBus=ON
@@ -527,7 +502,6 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug
           -DDS_FOUND=ON
           -DPLUGIN_MIRACAST=ON
-          -DPLUGIN_XCAST=ON
           -DRDK_SERVICES_L1_TEST=ON
           -DUSE_THUNDER_R4=ON
           -DHIDE_NON_EXTERNAL_SYMBOLS=OFF
@@ -654,12 +628,12 @@ jobs:
           &&
           lcov -c
           -o coverage.info
-          -d build/entservices-casting
+          -d build/entservices-miracast
           &&
           lcov
           -r coverage.info
           '/usr/include/*'
-          '*/build/entservices-casting/_deps/*'
+          '*/build/entservices-miracast/_deps/*'
           '*/install/usr/include/*'
           '*/Tests/headers/*'
           '*/Tests/mocks/*'
@@ -669,14 +643,14 @@ jobs:
           &&
           genhtml
           -o coverage
-          -t "entservices-casting coverage"
+          -t "entservices-miracast coverage"
           filtered_coverage.info
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
         with:
-          name: artifacts-L1-casting
+          name: artifacts-L1-miracast
           path: |
             coverage/
             valgrind_log
