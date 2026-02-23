@@ -48,6 +48,7 @@ namespace WPEFramework
                 , mCurrentService(nullptr)
                 , mConnectionId(0)
                 , mMiracastPlayerImpl(nullptr)
+                , mConfigure(nullptr)
                 , mMiracastPlayerNotification(this)
         {
             SYSLOG(Logging::Startup, (_T("MiracastPlayer Constructor")));

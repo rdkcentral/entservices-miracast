@@ -167,6 +167,12 @@ namespace WPEFramework
         void MiracastServiceImplementation::getThunderPlugins(void)
         {
             MIRACASTLOG_TRACE("Entering ...");
+            if (nullptr == m_CurrentService)
+            {
+                MIRACASTLOG_ERROR("m_CurrentService is nullptr, cannot get Thunder plugins");
+                return;
+            }
+            
             if (nullptr == m_SystemPluginObj)
             {
                 string token;
@@ -239,7 +245,12 @@ namespace WPEFramework
                 {
                     std::string friendlyName = "";
                     friendlyName = Result["friendlyName"].String();
-                    m_miracast_ctrler_obj->set_FriendlyName(friendlyName,m_isServiceEnabled);
+                    bool isServiceEnabled;
+                    {
+                        lock_guard<recursive_mutex> lock(m_EventMutex);
+                        isServiceEnabled = m_isServiceEnabled;
+                    }
+                    m_miracast_ctrler_obj->set_FriendlyName(friendlyName,isServiceEnabled);
                     MIRACASTLOG_INFO("Miracast FriendlyName=%s", friendlyName.c_str());
                     return_value = true;
                 }
@@ -538,9 +549,9 @@ namespace WPEFramework
             eMIRA_SERVICE_STATES current_state = getCurrentServiceState();
             if (enabled)
             {
+                lock_guard<recursive_mutex> lock(m_EventMutex);
                 if (!m_isServiceEnabled)
                 {
-                    lock_guard<recursive_mutex> lock(m_EventMutex);
                     m_isServiceEnabled = true;
                     if (m_IsTransitionFromDeepSleep)
                     {
@@ -566,33 +577,36 @@ namespace WPEFramework
                 {
                     result.message = "Failed as MiracastPlayer already Launched";
                 }
-                else if (m_isServiceEnabled)
+                else
                 {
                     lock_guard<recursive_mutex> lock(m_EventMutex);
-                    m_isServiceEnabled = false;
-                    if (!m_IsTransitionFromDeepSleep)
+                    if (m_isServiceEnabled)
                     {
-                        if ( MIRACAST_SERVICE_STATE_RESTARTING_SESSION == current_state )
+                        m_isServiceEnabled = false;
+                        if (!m_IsTransitionFromDeepSleep)
                         {
-                            m_miracast_ctrler_obj->stop_discoveryAsync();
+                            if ( MIRACAST_SERVICE_STATE_RESTARTING_SESSION == current_state )
+                            {
+                                m_miracast_ctrler_obj->stop_discoveryAsync();
+                            }
+                            else
+                            {
+                                setEnableInternal(false);
+                            }
                         }
                         else
                         {
-                            setEnableInternal(false);
+                            MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK Skipping Disable discovery as done by PwrMgr");
                         }
+                        remove_wifi_connection_state_timer();
+                        remove_miracast_connection_timer();
+                        isSuccessOrFailure = true;
+                        result.message = "Successfully disabled the WFD Discovery";
                     }
                     else
                     {
-                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK Skipping Disable discovery as done by PwrMgr");
+                        result.message = "WFD Discovery already disabled.";
                     }
-                    remove_wifi_connection_state_timer();
-                    remove_miracast_connection_timer();
-                    isSuccessOrFailure = true;
-                    result.message = "Successfully disabled the WFD Discovery";
-                }
-                else
-                {
-                    result.message = "WFD Discovery already disabled.";
                 }
             }
             result.success = isSuccessOrFailure;
@@ -603,7 +617,10 @@ namespace WPEFramework
         Core::hresult MiracastServiceImplementation::GetEnabled(bool &enabled , bool &success )
         {
             MIRACASTLOG_TRACE("Entering ...");
-            enabled = m_isServiceEnabled;
+            {
+                lock_guard<recursive_mutex> lock(m_EventMutex);
+                enabled = m_isServiceEnabled;
+            }
             success = true;
             MIRACASTLOG_TRACE("Exiting ...");
             return Core::ERROR_NONE;
@@ -763,7 +780,12 @@ namespace WPEFramework
                 }
             }
 
-            if ( m_isServiceEnabled && restart_discovery_needed )
+            bool isServiceEnabled;
+            {
+                lock_guard<recursive_mutex> lock(m_EventMutex);
+                isServiceEnabled = m_isServiceEnabled;
+            }
+            if ( isServiceEnabled && restart_discovery_needed )
             {
                 // It will restart the discovering
                 m_miracast_ctrler_obj->restart_session_discovery(clientMac);
@@ -1085,7 +1107,12 @@ namespace WPEFramework
         {
             MIRACASTLOG_INFO("Miracast WiFi State=%#08X", wifiState);
             lock_guard<mutex> lck(m_DiscoveryStateMutex);
-            if (m_isServiceEnabled)
+            bool isServiceEnabled;
+            {
+                lock_guard<recursive_mutex> lock(m_EventMutex);
+                isServiceEnabled = m_isServiceEnabled;
+            }
+            if (isServiceEnabled)
             {
                 switch(wifiState)
                 {
@@ -1190,9 +1217,14 @@ namespace WPEFramework
             MiracastServiceImplementation *self = (MiracastServiceImplementation *)userdata;
             MIRACASTLOG_INFO("TimerCallback Triggered for Monitor WiFi Connection Status...");
             {lock_guard<mutex> lck(self->m_DiscoveryStateMutex);
+                bool isServiceEnabled;
+                {
+                    lock_guard<recursive_mutex> lock(self->m_EventMutex);
+                    isServiceEnabled = self->m_isServiceEnabled;
+                }
                 MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-WIFI Discovery[%u] WiFiConnectingState[%u] ####",
-                                    self->m_isServiceEnabled,m_IsWiFiConnectingState);
-                if (self->m_isServiceEnabled && m_IsWiFiConnectingState)
+                                    isServiceEnabled,m_IsWiFiConnectingState);
+                if (isServiceEnabled && m_IsWiFiConnectingState)
                 {
                     {lock_guard<recursive_mutex> lock(self->m_EventMutex);
                         self->setEnableInternal(true);

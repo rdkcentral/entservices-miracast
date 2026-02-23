@@ -190,6 +190,8 @@ MiracastRTSPMsg::MiracastRTSPMsg()
     std::string default_configuration;
 
     MIRACASTLOG_TRACE("Entering...");
+    m_rtsp_msg_handler_thread = nullptr;
+    m_controller_thread = nullptr;
     m_tcpSockfd = -1;
     m_epollfd = -1;
     m_streaming_started = false;
@@ -256,7 +258,7 @@ MiracastRTSPMsg::MiracastRTSPMsg()
     set_WFDStreamingPortNumber(default_configuration);
 
     default_configuration = RTSP_DFLT_CLIENT_RTP_PORTS;
-    set_WFDClientRTPPorts(default_configuration);
+    set_WFDClientRTPPorts(std::move(default_configuration));
 
 #ifndef MIRACAST_CERT_BUILD
     m_wfd_src_req_timeout += RTSP_REQ_RESP_RECV_TIMEOUT_OFFSET_MSEC;
@@ -461,67 +463,67 @@ bool MiracastRTSPMsg::set_WFDAudioCodecs( RTSP_WFD_AUDIO_FMT_STRUCT st_audio_fmt
 
 bool MiracastRTSPMsg::set_WFDClientRTPPorts(std::string client_rtp_ports)
 {
-    m_wfd_client_rtp_ports = client_rtp_ports;
+    m_wfd_client_rtp_ports = std::move(client_rtp_ports);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDUIBCCapability(std::string uibc_caps)
 {
-    m_wfd_uibc_capability = uibc_caps;
+    m_wfd_uibc_capability = std::move(uibc_caps);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDContentProtection(std::string content_protection)
 {
-    m_wfd_content_protection = content_protection;
+    m_wfd_content_protection = std::move(content_protection);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDSecScreenSharing(std::string screen_sharing)
 {
-    m_wfd_sec_screensharing = screen_sharing;
+    m_wfd_sec_screensharing = std::move(screen_sharing);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDPortraitDisplay(std::string portrait_display)
 {
-    m_wfd_sec_portrait_display = portrait_display;
+    m_wfd_sec_portrait_display = std::move(portrait_display);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDSecRotation(std::string rotation)
 {
-    m_wfd_sec_rotation = rotation;
+    m_wfd_sec_rotation = std::move(rotation);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDSecHWRotation(std::string hw_rotation)
 {
-    m_wfd_sec_hw_rotation = hw_rotation;
+    m_wfd_sec_hw_rotation = std::move(hw_rotation);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDSecFrameRate(std::string framerate)
 {
-    m_wfd_sec_framerate = framerate;
+    m_wfd_sec_framerate = std::move(framerate);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDPresentationURL(std::string URL)
 {
-    m_wfd_presentation_URL = URL;
+    m_wfd_presentation_URL = std::move(URL);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDTransportProfile(std::string profile)
 {
-    m_wfd_transport_profile = profile;
+    m_wfd_transport_profile = std::move(profile);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDStreamingPortNumber(std::string port_number)
 {
-    m_wfd_streaming_port = port_number;
+    m_wfd_streaming_port = std::move(port_number);
     return true;
 }
 
@@ -533,19 +535,19 @@ bool MiracastRTSPMsg::set_WFDEnableDisableUnicast(bool enable_disable_unicast)
 
 bool MiracastRTSPMsg::set_WFDSessionNumber(std::string session)
 {
-    m_wfd_session_number = session;
+    m_wfd_session_number = std::move(session);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDDisplayEDID(std::string wfd_display_edid)
 {
-    m_wfd_display_edid = wfd_display_edid;
+    m_wfd_display_edid = std::move(wfd_display_edid);
     return true;
 }
 
 bool MiracastRTSPMsg::set_WFDConnectorType(std::string wfd_connector_type)
 {
-    m_wfd_connector_type = wfd_connector_type;
+    m_wfd_connector_type = std::move(wfd_connector_type);
     return true;
 }
 
@@ -699,7 +701,7 @@ std::string MiracastRTSPMsg::generate_request_response_msg(RTSP_MSG_FMT_SINK2SRC
         break;
         case RTSP_MSG_FMT_M3_RESPONSE:
         {
-            content_buffer = append_data1;
+            content_buffer = std::move(append_data1);
             content_buffer_len = std::to_string(content_buffer.length());
             sprintf_args.push_back(content_buffer_len.c_str());
             sprintf_args.push_back(received_session_no.c_str());
@@ -829,10 +831,10 @@ void MiracastRTSPMsg::store_srcsink_info( std::string client_name,
                                           std::string sink_ip)
 {
     MIRACASTLOG_TRACE("Entering...");
-    m_connected_device_name = client_name;
-    m_connected_mac_addr = client_mac;
-    m_src_dev_ip = src_dev_ip;
-    m_sink_ip = sink_ip;
+    m_connected_device_name = std::move(client_name);
+    m_connected_mac_addr = std::move(client_mac);
+    m_src_dev_ip = std::move(src_dev_ip);
+    m_sink_ip = std::move(sink_ip);
     MIRACASTLOG_TRACE("Exiting...");
 }
 
@@ -902,7 +904,7 @@ RTSP_STATUS MiracastRTSPMsg::receive_buffer_timedOut(int socket_fd, void *buffer
             status = RTSP_MSG_FAILURE;
         }
     }
-    MIRACASTLOG_TRACE("received string(%d) - %s", recv_return, buffer);
+    MIRACASTLOG_TRACE("received string(%d) - %.*s", recv_return, recv_return, buffer);
     MIRACASTLOG_TRACE("Exiting [%d]...",status);
     return status;
 }
@@ -974,7 +976,11 @@ MiracastError MiracastRTSPMsg::initiate_TCP(std::string goIP)
         event.data.fd = m_tcpSockfd;
         epoll_ctl(m_epollfd, EPOLL_CTL_ADD, m_tcpSockfd, &event);
 
-        fcntl(m_tcpSockfd, F_SETFL, O_NONBLOCK);
+        int fcntl_result = fcntl(m_tcpSockfd, F_SETFL, O_NONBLOCK);
+        if (fcntl_result < 0) {
+            MIRACASTLOG_ERROR("Failed to set non-blocking mode: %s", strerror(errno));
+			return MIRACAST_FAIL;
+        }
         MIRACASTLOG_INFO("NON_BLOCKING Socket Enabled...");
 
         r = connect(m_tcpSockfd, (struct sockaddr *)&in_addr, addr_size);
@@ -1079,12 +1085,12 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_setparameter_request( std::string rts
 
     if (rtsp_msg_buffer.find(trigger_method_tag) != std::string::npos)
     {
-        status_code = validate_rtsp_trigger_method_request(rtsp_msg_buffer);
+        status_code = validate_rtsp_trigger_method_request(std::move(rtsp_msg_buffer));
     }
     else
     {
         // Processing M4 request and response back
-        status_code = validate_rtsp_m4_response_back(rtsp_msg_buffer);
+        status_code = validate_rtsp_m4_response_back(std::move(rtsp_msg_buffer));
     }
     MIRACASTLOG_TRACE("Exiting...");
 
@@ -1099,7 +1105,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_getparameter_request( std::string rts
 
     if (rtsp_msg_buffer.find(content_txt_tag) != std::string::npos)
     {
-        status_code = validate_rtsp_m3_response_back(rtsp_msg_buffer);
+        status_code = validate_rtsp_m3_response_back(std::move(rtsp_msg_buffer));
     }
     else
     {
@@ -1121,7 +1127,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_getparameter_request( std::string rts
                 break;
             }
         }
-        status_code = send_rtsp_reply_sink2src( RTSP_MSG_FMT_M16_RESPONSE , seq_str );
+        status_code = send_rtsp_reply_sink2src( RTSP_MSG_FMT_M16_RESPONSE , std::move(seq_str) );
         if ( RTSP_MSG_SUCCESS == status_code )
         {
             // Overwriting the SUCCESS status as KEEP-ALIVE-MSG received to handle M16
@@ -1135,7 +1141,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_getparameter_request( std::string rts
 
 RTSP_STATUS MiracastRTSPMsg::validate_rtsp_options_request( std::string rtsp_msg_buffer )
 {
-    return validate_rtsp_m1_msg_m2_send_request(rtsp_msg_buffer);
+    return validate_rtsp_m1_msg_m2_send_request(std::move(rtsp_msg_buffer));
 }
 
 RTSP_STATUS MiracastRTSPMsg::validate_rtsp_generic_request_response( std::string rtsp_msg_buffer )
@@ -1151,20 +1157,20 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_generic_request_response( std::string
 
     if (rtsp_msg_buffer.find(public_tag) != std::string::npos)
     {
-        status_code = validate_rtsp_m2_request_ack(rtsp_msg_buffer);
+        status_code = validate_rtsp_m2_request_ack(std::move(rtsp_msg_buffer));
     }
     else if (rtsp_msg_buffer.find(transport_tag) != std::string::npos){
-        status_code = validate_rtsp_m6_ack_m7_send_request(rtsp_msg_buffer);
+        status_code = validate_rtsp_m6_ack_m7_send_request(std::move(rtsp_msg_buffer));
     }
     else if (rtsp_msg_buffer.find(get_errorcode_string(RTSP_ERRORCODE_OK)) != std::string::npos)
     {
-        status_code = validate_rtsp_trigger_request_ack(rtsp_msg_buffer , received_seq_num );
+        status_code = validate_rtsp_trigger_request_ack(std::move(rtsp_msg_buffer) , std::move(received_seq_num) );
     }
     else
     {
         if (rtsp_msg_buffer.find(rtsp_version_tag) != std::string::npos)
         {
-            MIRACASTLOG_WARNING(" !!! Could be RTSP ERROR Reported !!!...",rtsp_msg_buffer.c_str());
+            MIRACASTLOG_WARNING(" !!! Could be RTSP ERROR Reported %s !!!...",rtsp_msg_buffer.c_str());
             status_code = RTSP_MSG_SUCCESS;
         }
         else
@@ -1173,7 +1179,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_generic_request_response( std::string
                                 rtsp_msg_buffer.c_str(),
                                 received_seq_num.c_str());
             send_rtsp_reply_sink2src( RTSP_MSG_FMT_REPORT_ERROR , 
-                                      received_seq_num, 
+                                      std::move(received_seq_num), 
                                       RTSP_ERRORCODE_NOT_IMPLEMENTED );
             status_code = RTSP_METHOD_NOT_SUPPORTED;
         }
@@ -1217,21 +1223,21 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m1_msg_m2_send_request(std::string rt
         }
     }
 
-    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, seq_str, req_str);
+    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, seq_str, std::move(req_str));
 
     MIRACASTLOG_INFO("Sending the M1 response [%s]", m1_msg_resp_sink2src.c_str());
 
-    status_code = send_rstp_msg(m_tcpSockfd, m1_msg_resp_sink2src);
+    status_code = send_rstp_msg(m_tcpSockfd, std::move(m1_msg_resp_sink2src));
 
     if (RTSP_MSG_SUCCESS == status_code)
     {
         std::string m2_msg_req_sink2src = "";
         MIRACASTLOG_INFO("M1 response sent");
 
-        m2_msg_req_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M2_REQUEST, "", req_str);
+        m2_msg_req_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M2_REQUEST, "", "");
 
         MIRACASTLOG_INFO("Sending the M2 request [%s]",m2_msg_req_sink2src.c_str());
-        status_code = send_rstp_msg(m_tcpSockfd, m2_msg_req_sink2src);
+        status_code = send_rstp_msg(m_tcpSockfd, std::move(m2_msg_req_sink2src));
         if (RTSP_MSG_SUCCESS == status_code)
         {
             MIRACASTLOG_INFO("M2 request sent");
@@ -1333,7 +1339,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m2_request_ack(std::string rtsp_m2_re
 
     if (  RTSP_MSG_SUCCESS != status_code )
     {
-        send_rtsp_reply_sink2src( RTSP_MSG_FMT_REPORT_ERROR , seq_str, RTSP_ERRORCODE_BAD_REQUEST );
+        send_rtsp_reply_sink2src( RTSP_MSG_FMT_REPORT_ERROR , std::move(seq_str), RTSP_ERRORCODE_BAD_REQUEST );
     }
 
     MIRACASTLOG_INFO("#### totalLen[%d] and processedBytes[%d] ####", totalLen,processedBytes);
@@ -1346,7 +1352,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m2_request_ack(std::string rtsp_m2_re
     {
         std::string m3_request_buffer = rtsp_m2_resp_ack_buffer.substr(processedBytes, totalLen - processedBytes);
         MIRACASTLOG_INFO("#### [M2-ack + M3 Req] Received M3[%s]  ####", m3_request_buffer.c_str());
-        status_code = validate_rtsp_receive_buffer_handling(m3_request_buffer);
+        status_code = validate_rtsp_receive_buffer_handling(std::move(m3_request_buffer));
         MIRACASTLOG_INFO("#### Response[%#04X] ####", status_code);
     }
     set_wait_timeout(m_wfd_src_req_timeout);
@@ -1396,11 +1402,11 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m3_response_back(std::string rtsp_m3_
         }
     }
 
-    m3_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M3_RESPONSE, seq_str, content_buffer);
+    m3_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M3_RESPONSE, std::move(seq_str), std::move(content_buffer));
 
     MIRACASTLOG_VERBOSE("%s", m3_msg_resp_sink2src.c_str());
 
-    status_code = send_rstp_msg(m_tcpSockfd, m3_msg_resp_sink2src);
+    status_code = send_rstp_msg(m_tcpSockfd, std::move(m3_msg_resp_sink2src));
 
     if (RTSP_MSG_SUCCESS == status_code)
     {
@@ -1447,10 +1453,10 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m4_response_back(std::string rtsp_m4_
         }
     }
 
-    m4_msg_resp_sink2src = generate_request_response_msg( RTSP_MSG_FMT_M4_RESPONSE,seq_str,"");
+    m4_msg_resp_sink2src = generate_request_response_msg( RTSP_MSG_FMT_M4_RESPONSE,std::move(seq_str),"");
 
     MIRACASTLOG_INFO("Sending the M4 response");
-    status_code = send_rstp_msg(m_tcpSockfd, m4_msg_resp_sink2src);
+    status_code = send_rstp_msg(m_tcpSockfd, std::move(m4_msg_resp_sink2src));
     if (RTSP_MSG_SUCCESS == status_code)
     {
         MIRACASTLOG_INFO("M4 response sent");
@@ -1487,10 +1493,11 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m5_msg_m6_send_request(std::string rt
         }
     }
 
-    m5_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M5_RESPONSE, seq_str, "");
+    
+    m5_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M5_RESPONSE, std::move(seq_str), "");
 
     MIRACASTLOG_INFO("Sending the M5 response");
-    status_code = send_rstp_msg(m_tcpSockfd, m5_msg_resp_sink2src);
+    status_code = send_rstp_msg(m_tcpSockfd, std::move(m5_msg_resp_sink2src));
     if (RTSP_MSG_SUCCESS == status_code)
     {
         MIRACASTLOG_INFO("M5 Response has sent");
@@ -1558,7 +1565,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m6_ack_m7_send_request(std::string rt
         }
     }
 
-    set_WFDSessionNumber(session_number);
+    set_WFDSessionNumber(std::move(session_number));
     if ( -1 != timeoutValue )
     {
         m_wfd_src_session_timeout = timeoutValue;
@@ -1589,7 +1596,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_request_ack(std::string rtsp_
 
     if ( false == IsValidSequenceNumber(received_seq_num))
     {
-        send_rtsp_reply_sink2src( RTSP_MSG_FMT_REPORT_ERROR , received_seq_num, RTSP_ERRORCODE_BAD_REQUEST );
+        send_rtsp_reply_sink2src( RTSP_MSG_FMT_REPORT_ERROR , std::move(received_seq_num), RTSP_ERRORCODE_BAD_REQUEST );
         MIRACASTLOG_ERROR("Invalid Sequence Number in trigger[%s]",rtsp_trigger_req_ack_buffer.c_str());
     }
     else
@@ -1621,7 +1628,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_method_request(std::string rt
     
     if (rtsp_msg_buffer.find(setup_tag) != std::string::npos)
     {
-        status_code = validate_rtsp_m5_msg_m6_send_request(rtsp_msg_buffer);
+        status_code = validate_rtsp_m5_msg_m6_send_request(std::move(rtsp_msg_buffer));
     }
     else
     {
@@ -1656,7 +1663,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_method_request(std::string rt
         if ( sink2src_resp_needed )
         {
             status_code = send_rtsp_reply_sink2src( RTSP_MSG_FMT_TRIGGER_METHODS_RESPONSE , 
-                                                    received_seq_num , 
+                                                    std::move(received_seq_num) , 
                                                     error_code );
             if ( RTSP_MSG_SUCCESS == status_code )
             {
@@ -1712,7 +1719,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_receive_buffer_handling(std::string r
                     MIRACASTLOG_INFO("#### COMPLETE GET_PARAM_REQ [%s] TO BE HANDLE ####",common_get_parameter_buffer.c_str());
                     if ( false == m_getparameter_response_sent )
                     {
-                        status_code = validate_rtsp_getparameter_request(common_get_parameter_buffer);
+                        status_code = validate_rtsp_getparameter_request(std::move(common_get_parameter_buffer));
                     }
                     else
                     {
@@ -1748,15 +1755,15 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_receive_buffer_handling(std::string r
         }
         else if (first_line.find(options_tag) != std::string::npos)
         {
-            status_code = validate_rtsp_options_request(rtsp_msg_buffer);
+            status_code = validate_rtsp_options_request(std::move(rtsp_msg_buffer));
         }
         else if (first_line.find(set_parameter_tag) != std::string::npos)
         {
-            status_code = validate_rtsp_setparameter_request(rtsp_msg_buffer);
+            status_code = validate_rtsp_setparameter_request(std::move(rtsp_msg_buffer));
         }
         else
         {
-            status_code = validate_rtsp_generic_request_response(rtsp_msg_buffer);
+            status_code = validate_rtsp_generic_request_response(std::move(rtsp_msg_buffer));
         }
     }
     MIRACASTLOG_TRACE("Exiting [%#04X]...",status_code);
@@ -1781,10 +1788,10 @@ RTSP_STATUS MiracastRTSPMsg::send_rtsp_reply_sink2src( RTSP_MSG_FMT_SINK2SRC req
         case RTSP_MSG_FMT_TRIGGER_METHODS_RESPONSE:
         {
             std::string rtsp_request_buffer = "";
-            rtsp_request_buffer = generate_request_response_msg(req_fmt, received_seq_num , "" , error_code );
+            rtsp_request_buffer = generate_request_response_msg(req_fmt, std::move(received_seq_num) , "" , error_code );
 
             MIRACASTLOG_INFO("Sending the RTSP Msg for [%#04X] format\n",req_fmt);
-            status_code = send_rstp_msg(m_tcpSockfd, rtsp_request_buffer);
+            status_code = send_rstp_msg(m_tcpSockfd, std::move(rtsp_request_buffer));
             if (RTSP_MSG_SUCCESS == status_code)
             {
                 MIRACASTLOG_VERBOSE("RTSP Msg has sent");
@@ -1808,7 +1815,7 @@ RTSP_STATUS MiracastRTSPMsg::send_rtsp_reply_sink2src( RTSP_MSG_FMT_SINK2SRC req
 
 RTSP_STATUS MiracastRTSPMsg::validate_rtsp_post_m1_m7_xchange(std::string rtsp_post_m1_m7_xchange_buffer)
 {
-    return validate_rtsp_receive_buffer_handling(rtsp_post_m1_m7_xchange_buffer);
+    return validate_rtsp_receive_buffer_handling(std::move(rtsp_post_m1_m7_xchange_buffer));
 }
 
 RTSP_STATUS MiracastRTSPMsg::rtsp_sink2src_request_msg_handling(eCONTROLLER_FW_STATES action_id)
@@ -1974,7 +1981,7 @@ MiracastError MiracastRTSPMsg::stop_streaming( MiracastPlayerState state )
     return MIRACAST_OK;
 }
 
-MiracastError MiracastRTSPMsg::updateVideoRectangle( VIDEO_RECT_STRUCT videorect )
+MiracastError MiracastRTSPMsg::updateVideoRectangle( const VIDEO_RECT_STRUCT& videorect )
 {
     MIRACASTLOG_TRACE("Entering...");
 

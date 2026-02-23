@@ -40,11 +40,13 @@ MiracastP2P *MiracastP2P::m_miracast_p2p_obj{nullptr};
 MiracastP2P::MiracastP2P(void)
 {
     MIRACASTLOG_TRACE("Entering..");
+    m_ctrler_evt_hdlr = nullptr;
     m_p2p_ctrl_monitor_thread_id = 0;
     m_wpa_p2p_cmd_ctrl_iface = nullptr;
     m_wpa_p2p_ctrl_monitor = nullptr;
     m_stop_p2p_monitor = false;
     m_isWiFiDisplayParamsEnabled = false;
+    m_event_buffer_len = 0;
 
     m_authType = MIRACAST_DFLT_CFG_METHOD;
     m_friendly_name = "";
@@ -72,7 +74,7 @@ MiracastP2P *MiracastP2P::getInstance(MiracastError &error_code,std::string p2p_
     {
         m_miracast_p2p_obj = new MiracastP2P();
         if (nullptr != m_miracast_p2p_obj){
-            ret_code = m_miracast_p2p_obj->Init(p2p_ctrl_iface);
+            ret_code = m_miracast_p2p_obj->Init(std::move(p2p_ctrl_iface));
             if ( MIRACAST_OK != ret_code){
                 destroyInstance();
             }
@@ -141,7 +143,7 @@ void MiracastP2P::Release_P2PCtrlInterface(void)
 // Connects to the wpa_supplicant via control interface
 // Gets attached to wpa_supplicant to receiver events
 // Starts the p2p_monitor thread
-MiracastError MiracastP2P::p2pInit(std::string p2p_ctrl_iface)
+MiracastError MiracastP2P::p2pInit(const std::string& p2p_ctrl_iface)
 {
     int retry = 0;
     m_stop_p2p_monitor = false;
@@ -359,7 +361,7 @@ int MiracastP2P::p2pExecute(char *cmd, enum INTERFACE iface, char *ret_buf, size
     return ret;
 }
 
-MiracastError MiracastP2P::executeCommand(std::string command, int interface, std::string &retBuffer)
+MiracastError MiracastP2P::executeCommand(const std::string& command, int interface, std::string &retBuffer)
 {
     MIRACASTLOG_TRACE("Entering..");
 
@@ -381,7 +383,7 @@ MiracastError MiracastP2P::Init( std::string p2p_ctrl_iface )
     MIRACASTLOG_TRACE("Entering..");
 
     {
-        ret_code = p2pInit(p2p_ctrl_iface);
+        ret_code = p2pInit(std::move(p2p_ctrl_iface));
         if (MIRACAST_OK != ret_code)
         {
             MIRACASTLOG_ERROR("P2P Init failed");
@@ -439,7 +441,7 @@ MiracastError MiracastP2P::set_WFDParameters(void)
 
         /* Set p2p_go_intent to 14 */
         command = "SET p2p_go_intent 14";
-        executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+        executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
 
         m_isWiFiDisplayParamsEnabled = true;
     }
@@ -463,7 +465,7 @@ MiracastError MiracastP2P::discover_devices(void)
 
     /*Start Passive Scanning*/
     command = "P2P_EXT_LISTEN 0 0";
-    ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+    ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
 
     if (!opt_flag_buffer.empty())
     {
@@ -474,7 +476,7 @@ MiracastError MiracastP2P::discover_devices(void)
 	    command = "P2P_EXT_LISTEN 200 1000";
     }
 
-    ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+    ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
     if (ret != MIRACAST_OK)
     {
         MIRACASTLOG_ERROR("Failed to discovering devices");
@@ -491,14 +493,14 @@ MiracastError MiracastP2P::stop_discover_devices(void)
 
     /*Stop Passive Scanning*/
     command = "P2P_EXT_LISTEN 0 0";
-    ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+    ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
     if (ret != MIRACAST_OK)
     {
         MIRACASTLOG_ERROR("Failed to stop discovering devices");
     }
 
     command = "P2P_STOP_FIND";
-    ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+    ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
     if (ret != MIRACAST_OK)
     {
         MIRACASTLOG_ERROR("Failed to Stop discovering devices");
@@ -540,7 +542,7 @@ MiracastError MiracastP2P::cancel_negotiation(void)
 
     /*Stop P2P Negotiation*/
     command = "P2P_CANCEL";
-    ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
+    ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
     if (ret != MIRACAST_OK)
     {
         MIRACASTLOG_ERROR("Failed to cancel P2P Negotiation");
@@ -562,16 +564,16 @@ MiracastError MiracastP2P::set_FriendlyName(std::string friendly_name , bool app
     }
     else
     {
-        m_friendly_name = friendly_name;
+        m_friendly_name = std::move(friendly_name);
         if ( P2P_SUPPORTED_MAX_FRIENDLY_NAME_LENGTH < m_friendly_name.length())
         {
             std::string trimming_char = P2P_TRIMMING_CHAR;
             size_t trimmed_length = P2P_SUPPORTED_MAX_FRIENDLY_NAME_LENGTH - trimming_char.length();
-
+			
+            size_t original_length = m_friendly_name.length();
             m_friendly_name = m_friendly_name.substr(0, trimmed_length) + trimming_char;
-            MIRACASTLOG_WARNING("!!! Max Friendly name[%s] Length[%u] passed. So trimming it[%s]TrimLen[%u] !!!",
-                                friendly_name.c_str(),
-                                friendly_name.length(),
+            MIRACASTLOG_WARNING("!!! Max Friendly name Length[%zu] passed. So trimming it[%s]TrimLen[%zu] !!!",
+                                original_length,
                                 m_friendly_name.c_str(),
                                 trimmed_length);
         }
@@ -602,7 +604,7 @@ MiracastError MiracastP2P::remove_GroupInterface(std::string group_iface_name )
     }
     else{
         std::string command, retBuffer;
-        command = "P2P_GROUP_REMOVE " + group_iface_name;
+        command = "P2P_GROUP_REMOVE " + std::move(group_iface_name);
         ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
     }
 

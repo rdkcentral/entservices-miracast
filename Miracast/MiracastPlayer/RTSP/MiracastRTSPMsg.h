@@ -544,7 +544,7 @@ class MiracastRTSPMsg
         RTSP_STATUS receive_buffer_timedOut(int sockfd, void *buffer, size_t buffer_len , unsigned int wait_time_ms = RTSP_REQUEST_RECV_TIMEOUT );
         bool wait_data_timeout(int m_Sockfd, unsigned int ms);
         RTSP_STATUS send_rstp_msg(int sockfd, std::string rtsp_response_buffer);
-        MiracastError updateVideoRectangle( VIDEO_RECT_STRUCT videorect );
+        MiracastError updateVideoRectangle( const VIDEO_RECT_STRUCT& videorect );
         int validateGetParameterContentLength(std::string& input);
 
         static std::string format_string(const char *fmt, const std::vector<const char *> &args)

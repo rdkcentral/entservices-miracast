@@ -48,6 +48,7 @@ namespace WPEFramework
                 , mCurrentService(nullptr)
                 , mConnectionId(0)
                 , mMiracastServiceImpl(nullptr)
+                , mConfigure(nullptr)
                 , mMiracastServiceNotification(this)
         {
             SYSLOG(Logging::Startup, (_T("MiracastService Constructor")));
