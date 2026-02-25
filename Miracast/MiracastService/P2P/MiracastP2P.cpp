@@ -569,7 +569,7 @@ MiracastError MiracastP2P::set_FriendlyName(std::string friendly_name , bool app
         {
             std::string trimming_char = P2P_TRIMMING_CHAR;
             size_t trimmed_length = P2P_SUPPORTED_MAX_FRIENDLY_NAME_LENGTH - trimming_char.length();
-			
+            
             size_t original_length = m_friendly_name.length();
             m_friendly_name = m_friendly_name.substr(0, trimmed_length) + trimming_char;
             MIRACASTLOG_WARNING("!!! Max Friendly name Length[%zu] passed. So trimming it[%s]TrimLen[%zu] !!!",
@@ -604,7 +604,7 @@ MiracastError MiracastP2P::remove_GroupInterface(std::string group_iface_name )
     }
     else{
         std::string command, retBuffer;
-        command = "P2P_GROUP_REMOVE " + std::move(group_iface_name);
+        command = "P2P_GROUP_REMOVE " + group_iface_name;
         ret = executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
     }
 

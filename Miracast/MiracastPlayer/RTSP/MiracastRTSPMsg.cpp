@@ -979,7 +979,7 @@ MiracastError MiracastRTSPMsg::initiate_TCP(std::string goIP)
         int fcntl_result = fcntl(m_tcpSockfd, F_SETFL, O_NONBLOCK);
         if (fcntl_result < 0) {
             MIRACASTLOG_ERROR("Failed to set non-blocking mode: %s", strerror(errno));
-			return MIRACAST_FAIL;
+            return MIRACAST_FAIL;
         }
         MIRACASTLOG_INFO("NON_BLOCKING Socket Enabled...");
 
