@@ -91,7 +91,7 @@ public:
     void flush_current_session(void);
     void remove_P2PGroupInstance(void);
     void restart_session(bool start_discovering_enabled);
-    void stop_session(bool stop_streaming_needed = false);
+    void stop_session(bool remove_p2p_group_async = false);
     std::string get_device_name(std::string mac);
     MiracastError set_FriendlyName(std::string friendly_name , bool apply = false);
     std::string get_FriendlyName(void);
@@ -113,7 +113,7 @@ public:
     void reset_NewSourceName(void);
 
     void setP2PBackendDiscovery(bool is_enabled);
-    void switch_launch_request_context(std::string& source_dev_ip,std::string& source_dev_mac,std::string& source_dev_name,std::string& sink_dev_ip);
+    void switch_launch_request_context(const std::string& source_dev_ip,const std::string& source_dev_mac,const std::string& source_dev_name,const std::string& sink_dev_ip);
     void start_discoveryAsync(void);
     void stop_discoveryAsync(void);
     void restart_discoveryAsync(void);
