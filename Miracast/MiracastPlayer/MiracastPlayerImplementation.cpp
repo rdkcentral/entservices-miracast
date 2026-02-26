@@ -38,6 +38,7 @@ namespace WPEFramework
         MiracastPlayerImplementation::MiracastPlayerImplementation()
         : _adminLock()
         , mService(nullptr)
+        , _service(nullptr)
         , m_isPluginInitialized(false)
         {
             LOGINFO("Call MiracastPlayerImplementation constructor");

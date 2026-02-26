@@ -66,11 +66,15 @@ MiracastGstPlayer::MiracastGstPlayer()
 {
     MIRACASTLOG_TRACE("Entering...");
     gst_init(nullptr, nullptr);
+    m_streaming_port = 0;
     m_bBuffering = false;
     m_bReady = false;
     m_currentPosition = 0.0f;
     m_buffering_level = 100;
     m_player_statistics_tid = 0;
+    m_is_live = false;
+    m_pushBufferLoop = false;
+    m_video_rect_st = {0, 0, 0, 0};
     SoC_ConfigureVideoDecodeErrorPolicy();
     MIRACASTLOG_TRACE("Exiting...");
 }
@@ -344,14 +348,14 @@ bool MiracastGstPlayer::get_player_statistics()
         if ( value )
         {
            render_frame = g_value_get_uint64( value );
-           MIRACASTLOG_TRACE("!!!! render_frame[%lu] !!!",render_frame);
+           MIRACASTLOG_TRACE("!!!! render_frame[%llu] !!!",render_frame);
         }
         /* Get Dropped Frames*/
         value = gst_structure_get_value( stats, (const gchar *)"dropped" );
         if ( value )
         {
            dropped_frame = g_value_get_uint64( value );
-           MIRACASTLOG_TRACE("!!!! dropped_frame[%lu] !!!",dropped_frame);
+           MIRACASTLOG_TRACE("!!!! dropped_frame[%llu] !!!",dropped_frame);
         }
         
         total_video_frames = render_frame + dropped_frame;
@@ -360,7 +364,7 @@ bool MiracastGstPlayer::get_player_statistics()
         MIRACASTLOG_INFO("Append Pipeline Current PTS: [ %f ]",append_pipeline_cur_pos);
         MIRACASTLOG_INFO("Playbin Pipeline Current PTS: [ %f ]",playbin_cur_pos);
 
-        MIRACASTLOG_INFO("Total Frames: [ %lu], Rendered Frames : [ %lu ], Dropped Frames: [%lu]",
+        MIRACASTLOG_INFO("Total Frames: [ %llu], Rendered Frames : [ %llu ], Dropped Frames: [%llu]",
                             total_video_frames,
                             render_frame,
                             dropped_video_frames);
@@ -617,13 +621,13 @@ gboolean MiracastGstPlayer::playbinPipelineBusMessage (GstBus * bus, GstMessage 
             guint64 processed;
             guint64 dropped;
             gst_message_parse_qos_stats(message, &format, &processed, &dropped);
-            MIRACASTLOG_VERBOSE("Format [%s], Processed [%lu], Dropped [%lu].", gst_format_get_name(format), processed, dropped);
+            MIRACASTLOG_VERBOSE("Format [%s], Processed [%llu], Dropped [%llu].", gst_format_get_name(format), processed, dropped);
 
             gint64 jitter;
             gdouble proportion;
             gint quality;
             gst_message_parse_qos_values(message, &jitter, &proportion, &quality);
-            MIRACASTLOG_VERBOSE("Jitter [%lu], Proportion [%lf],  Quality [%u].", jitter, proportion, quality);
+            MIRACASTLOG_VERBOSE("Jitter [%lld], Proportion [%lf],  Quality [%u].", jitter, proportion, quality);
 
             gboolean live;
             guint64 running_time;
@@ -631,7 +635,7 @@ gboolean MiracastGstPlayer::playbinPipelineBusMessage (GstBus * bus, GstMessage 
             guint64 timestamp;
             guint64 duration;
             gst_message_parse_qos(message, &live, &running_time, &stream_time, &timestamp, &duration);
-            MIRACASTLOG_VERBOSE("live stream [%d], runninng_time [%lu], stream_time [%lu], timestamp [%lu], duration [%lu].", live, running_time, stream_time, timestamp, duration);
+            MIRACASTLOG_VERBOSE("live stream [%d], runninng_time [%llu], stream_time [%llu], timestamp [%llu], duration [%llu].", live, running_time, stream_time, timestamp, duration);
         }
         break;
         default:
@@ -644,10 +648,17 @@ void* MiracastGstPlayer::pushbuffer_handler_thread(void *ctx)
 {
     MiracastGstPlayer *self = (MiracastGstPlayer *)ctx;
     MIRACASTLOG_TRACE("Entering..!!!");
+    
+    if (!self)
+    {
+        MIRACASTLOG_ERROR("Invalid context pointer!");
+        return nullptr;
+    }
+    
     void* buffer = nullptr;
     GstBuffer *gstBuffer = nullptr;
     self->m_pushBufferLoop = true;
-    while (self && (self->m_pushBufferLoop))
+    while (self->m_pushBufferLoop)
     {
         MIRACASTLOG_TRACE("Pushing buffer to appsrc.!!!");
         usleep(50);
@@ -662,9 +673,9 @@ void* MiracastGstPlayer::pushbuffer_handler_thread(void *ctx)
             {
                 MIRACASTLOG_ERROR("Error pushing buffer to appsrc");
             }
+            gstBuffer = nullptr;
+            buffer = nullptr;
         }
-        gstBuffer = NULL;
-        buffer = NULL;
     }
     MIRACASTLOG_TRACE("Exiting..!!!");
     pthread_exit(nullptr);
@@ -687,7 +698,7 @@ void MiracastGstPlayer::source_setup(GstElement *pipeline, GstElement *source, g
 {
     MiracastGstPlayer *self = static_cast<MiracastGstPlayer*>(userdata);
     MIRACASTLOG_INFO("Entering...");
-    MIRACASTLOG_INFO("Source has been created. Configuring [%x]",source);
+    MIRACASTLOG_INFO("Source has been created. Configuring [%p]",source);
     self->m_appsrc = source;
     // Set AppSrc parameters
     GstAppSrcCallbacks callbacks = {gst_bin_need_data, gst_bin_enough_data, NULL};
@@ -712,7 +723,7 @@ void MiracastGstPlayer::gstBufferReleaseCallback(void* userParam)
 
     if (nullptr != gstBuffer)
     {
-        MIRACASTLOG_INFO("gstBuffer[%x]",gstBuffer);
+        MIRACASTLOG_INFO("gstBuffer[%p]",gstBuffer);
         gst_buffer_unref(gstBuffer);
     }
 }
@@ -752,9 +763,9 @@ bool MiracastGstPlayer::createPipeline()
     if (!m_append_pipeline || !m_udpsrc || !m_rtpjitterbuffer || !m_rtpmp2tdepay ||
         !m_tsparse || !m_appsink || !m_video_sink )
     {
-        MIRACASTLOG_ERROR("Append Pipeline[%x]: Element creation failure, check below",m_append_pipeline);
-        MIRACASTLOG_WARNING("udpsrc[%x]rtpjitterbuffer[%x]rtpmp2tdepay[%x]",m_udpsrc,m_rtpjitterbuffer,m_rtpmp2tdepay);
-        MIRACASTLOG_WARNING("tsparse[%x]appsink[%x]videosink[%x]audiosink[%x]",
+        MIRACASTLOG_ERROR("Append Pipeline[%p]: Element creation failure, check below",m_append_pipeline);
+        MIRACASTLOG_WARNING("udpsrc[%p]rtpjitterbuffer[%p]rtpmp2tdepay[%p]",m_udpsrc,m_rtpjitterbuffer,m_rtpmp2tdepay);
+        MIRACASTLOG_WARNING("tsparse[%p]appsink[%p]videosink[%p]audiosink[%p]",
                             m_tsparse,m_appsink,m_video_sink,m_audio_sink);
         return -1;
     }
@@ -1001,7 +1012,7 @@ bool MiracastGstPlayer::stop()
     {
         gst_bin_remove(GST_BIN(m_append_pipeline), m_rtpjitterbuffer);
         gst_object_unref(m_rtpjitterbuffer);
-        m_tsparse = nullptr;
+        m_rtpjitterbuffer = nullptr;
     }
     if (m_udpsrc)
     {
