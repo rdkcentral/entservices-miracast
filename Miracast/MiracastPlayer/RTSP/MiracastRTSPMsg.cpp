@@ -1223,7 +1223,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m1_msg_m2_send_request(std::string rt
         }
     }
 
-    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, seq_str, std::move(req_str));
+    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, seq_str, req_str);
 
     MIRACASTLOG_INFO("Sending the M1 response [%s]", m1_msg_resp_sink2src.c_str());
 
@@ -1234,7 +1234,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m1_msg_m2_send_request(std::string rt
         std::string m2_msg_req_sink2src = "";
         MIRACASTLOG_INFO("M1 response sent");
 
-        m2_msg_req_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M2_REQUEST, "", "");
+        m2_msg_req_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M2_REQUEST, "", std::move(req_str));
 
         MIRACASTLOG_INFO("Sending the M2 request [%s]",m2_msg_req_sink2src.c_str());
         status_code = send_rstp_msg(m_tcpSockfd, std::move(m2_msg_req_sink2src));
