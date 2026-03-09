@@ -485,7 +485,7 @@ void MiracastController::remove_P2PGroupInstance(void)
         }
         else
         {
-            strncpy( commandBuffer , "ps -ax | awk '/p2p_udhcpc/ && !/grep/ {print $1}' | xargs kill -9" , sizeof(commandBuffer));
+            strncpy( commandBuffer , "ps -ax | awk '/wifi_p2p\\/udhcpc/ && !/grep/ {print $1}' | xargs kill -9" , sizeof(commandBuffer));
             commandBuffer[sizeof(commandBuffer) - 1] = '\0';
             MIRACASTLOG_INFO("Terminate old udhcpc p2p instance : [%s]", commandBuffer);
             MiracastCommon::execute_SystemCommand(commandBuffer);
