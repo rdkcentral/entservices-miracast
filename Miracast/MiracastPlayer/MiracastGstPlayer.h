@@ -114,7 +114,6 @@ private:
 
     static void *playbackThread(void *ctx);
     GMainLoop *m_main_loop{nullptr};
-    GMainContext *m_main_loop_context{nullptr};
 
     bool m_statistics_thread_loop{false};
     

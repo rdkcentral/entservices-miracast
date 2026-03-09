@@ -194,9 +194,10 @@ void *MiracastGstPlayer::playbackThread(void *ctx)
 {
     MIRACASTLOG_TRACE("Entering..!!!");
     MiracastGstPlayer *self = (MiracastGstPlayer *)ctx;
-    g_main_context_push_thread_default(self->m_main_loop_context);
-    g_main_loop_run(self->m_main_loop);
-    self->m_playback_thread = 0;
+    if (nullptr != self) {
+        g_main_loop_run(self->m_main_loop);
+        self->m_playback_thread = 0;
+    }
     MIRACASTLOG_TRACE("Exiting..!!!");
     pthread_exit(nullptr);
 }
@@ -743,9 +744,7 @@ bool MiracastGstPlayer::createPipeline()
     }
 
     /* create gst pipeline */
-    m_main_loop_context = g_main_context_new();
-    g_main_context_push_thread_default(m_main_loop_context);
-    m_main_loop = g_main_loop_new(m_main_loop_context, FALSE);
+    m_main_loop = g_main_loop_new(nullptr, FALSE);
 
     MIRACASTLOG_INFO("Creating Pipeline...");
 
@@ -899,7 +898,6 @@ bool MiracastGstPlayer::createPipeline()
         }
     }
 
-    g_main_context_pop_thread_default(m_main_loop_context);
     pthread_create(&m_playback_thread, nullptr, MiracastGstPlayer::playbackThread, this);
     pthread_create(&m_player_statistics_tid, nullptr, MiracastGstPlayer::monitor_player_statistics_thread, this);
     pthread_create(&m_pushbuffer_handler_tid, nullptr, MiracastGstPlayer::pushbuffer_handler_thread, this);
@@ -1024,11 +1022,6 @@ bool MiracastGstPlayer::stop()
     {
         g_main_loop_unref(m_main_loop);
         m_main_loop = nullptr;
-    }
-    if (m_main_loop_context)
-    {
-        g_main_context_unref(m_main_loop_context);
-        m_main_loop_context = nullptr;
     }
     if (m_append_pipeline)
     {
