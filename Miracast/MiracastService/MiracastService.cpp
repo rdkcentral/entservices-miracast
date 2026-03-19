@@ -130,6 +130,12 @@ namespace WPEFramework
         void MiracastService::Deinitialize(PluginHost::IShell* service)
         {
             SYSLOG(Logging::Startup, (_T("MiracastService::Deinitialize: PID=%u"), getpid()));
+            
+            // Testing coverity issue CID: 123456 - Memory Leak
+            uint8_t* testBuf;
+            testBuf = (uint8_t*)calloc(16, sizeof(uint8_t));
+            (void)testBuf;
+            // Testing coverity issue CID: 123456 - Memory Leak
 
             ASSERT(mCurrentService == service);
             ASSERT(0 == mConnectionId);
