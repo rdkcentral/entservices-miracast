@@ -256,8 +256,6 @@ bool MiracastCommon::execute_PopenCommand( const char* popen_command, const char
             MIRACASTLOG_INFO("#### popen Output[%s] ####", buffer);
         }
         pclose(popen_pipe_ptr);
-        /* coverity[unused_value : FALSE] */
-        popen_pipe_ptr = nullptr;
         if (current_line_buffer != nullptr)
 		{
 			free(current_line_buffer);

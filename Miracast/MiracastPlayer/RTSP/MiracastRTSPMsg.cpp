@@ -196,7 +196,7 @@ MiracastRTSPMsg::MiracastRTSPMsg()
     m_epollfd = -1;
     m_streaming_started = false;
     m_player_notify_handler = nullptr;
-    m_current_state = STATE_IDLE;
+    m_current_state = WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE;
     m_current_wait_time_ms = 0;
     m_rtsp_msg_hldr_running_state = false;
 
