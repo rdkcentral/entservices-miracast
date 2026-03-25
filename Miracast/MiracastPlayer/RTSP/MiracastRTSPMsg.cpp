@@ -908,7 +908,10 @@ RTSP_STATUS MiracastRTSPMsg::receive_buffer_timedOut(int socket_fd, void *buffer
             status = RTSP_MSG_FAILURE;
         }
     }
-    MIRACASTLOG_TRACE("received string(%d) - %.*s", recv_return, recv_return, static_cast<char*>(buffer));
+    else
+    {
+        MIRACASTLOG_TRACE("received string(%d) - %.*s", recv_return, recv_return, static_cast<char*>(buffer));
+    }
     MIRACASTLOG_TRACE("Exiting [%d]...",status);
     return status;
 }
