@@ -195,6 +195,10 @@ MiracastRTSPMsg::MiracastRTSPMsg()
     m_tcpSockfd = -1;
     m_epollfd = -1;
     m_streaming_started = false;
+    m_player_notify_handler = nullptr;
+    m_current_state = STATE_IDLE;
+    m_current_wait_time_ms = 0;
+    m_rtsp_msg_hldr_running_state = false;
 
     m_wfd_src_req_timeout = RTSP_REQUEST_RECV_TIMEOUT;
     m_wfd_src_res_timeout = RTSP_RESPONSE_RECV_TIMEOUT;
@@ -904,7 +908,7 @@ RTSP_STATUS MiracastRTSPMsg::receive_buffer_timedOut(int socket_fd, void *buffer
             status = RTSP_MSG_FAILURE;
         }
     }
-    MIRACASTLOG_TRACE("received string(%d) - %.*s", recv_return, recv_return, buffer);
+    MIRACASTLOG_TRACE("received string(%d) - %.*s", recv_return, recv_return, static_cast<char*>(buffer));
     MIRACASTLOG_TRACE("Exiting [%d]...",status);
     return status;
 }
@@ -1223,7 +1227,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m1_msg_m2_send_request(std::string rt
         }
     }
 
-    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, seq_str, req_str);
+    m1_msg_resp_sink2src = generate_request_response_msg(RTSP_MSG_FMT_M1_RESPONSE, std::move(seq_str), req_str);
 
     MIRACASTLOG_INFO("Sending the M1 response [%s]", m1_msg_resp_sink2src.c_str());
 
@@ -2365,6 +2369,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
     MIRACASTLOG_TRACE("Exiting...");
 }
 
+/* coverity[pass_by_value : FALSE] */
 void MiracastRTSPMsg::send_msgto_rtsp_msg_hdler_thread(RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data)
 {
     MIRACASTLOG_TRACE("Entering...");

@@ -1166,6 +1166,7 @@ namespace WPEFramework
             if (parameters.HasLabel("friendlyName"))
             {
                 value = parameters["friendlyName"].String();
+                /* coverity[missing_lock : FALSE] */
                 m_miracast_ctrler_obj->set_FriendlyName(value, m_isServiceEnabled);
                 MIRACASTLOG_INFO("Miracast FriendlyName=%s", value.c_str());
             }
