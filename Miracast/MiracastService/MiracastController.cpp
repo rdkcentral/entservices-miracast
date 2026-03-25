@@ -315,7 +315,7 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
             }
             MIRACASTLOG_VERBOSE("udhcpc output done\n");
             pclose(popen_file_ptr);
-	    /* coverity[unused_value : FALSE] */
+            /* coverity[unused_value : FALSE] */
             popen_file_ptr = nullptr;
 
             free(current_line_buffer);
