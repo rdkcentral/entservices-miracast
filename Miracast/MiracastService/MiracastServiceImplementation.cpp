@@ -1166,7 +1166,12 @@ namespace WPEFramework
             if (parameters.HasLabel("friendlyName"))
             {
                 value = parameters["friendlyName"].String();
-                m_miracast_ctrler_obj->set_FriendlyName(value, m_isServiceEnabled);
+                bool isServiceEnabled = false;
+                {
+                    lock_guard<recursive_mutex> lock(m_EventMutex);
+                    isServiceEnabled = m_isServiceEnabled;
+                }
+                m_miracast_ctrler_obj->set_FriendlyName(value, isServiceEnabled);
                 MIRACASTLOG_INFO("Miracast FriendlyName=%s", value.c_str());
             }
             MIRACASTLOG_TRACE("Exiting ...");

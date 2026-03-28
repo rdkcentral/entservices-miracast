@@ -75,8 +75,8 @@ private:
     GstElement  *m_appsink{nullptr};
 
     GstElement  *m_playbin_pipeline{nullptr};
-    GstElement  *m_appsrc;
-    GstCaps     *m_capsSrc;
+    GstElement  *m_appsrc{nullptr};
+    GstCaps     *m_capsSrc{nullptr};
 
     bool m_firstVideoFrameReceived{false};
 
