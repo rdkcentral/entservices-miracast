@@ -88,7 +88,7 @@ void MiracastThread::send_message(void *message, size_t msg_size)
         void *buffer = malloc(msg_size);
         if (nullptr == buffer)
         {
-            MIRACASTLOG_ERROR("Memory Allocation Failed for %u\n", msg_size);
+            MIRACASTLOG_ERROR("Memory Allocation Failed for %zu\n", msg_size);
             MIRACASTLOG_TRACE("Exiting...");
             return;
         }
@@ -256,7 +256,6 @@ bool MiracastCommon::execute_PopenCommand( const char* popen_command, const char
             MIRACASTLOG_INFO("#### popen Output[%s] ####", buffer);
         }
         pclose(popen_pipe_ptr);
-        popen_pipe_ptr = nullptr;
         if (current_line_buffer != nullptr)
 		{
 			free(current_line_buffer);

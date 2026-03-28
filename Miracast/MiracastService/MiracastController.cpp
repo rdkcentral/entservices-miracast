@@ -315,7 +315,6 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
             }
             MIRACASTLOG_VERBOSE("udhcpc output done\n");
             pclose(popen_file_ptr);
-            popen_file_ptr = nullptr;
 
             free(current_line_buffer);
             current_line_buffer = nullptr;
@@ -547,7 +546,7 @@ MiracastError MiracastController::set_WFDParameters(void)
     if (nullptr != m_p2p_ctrl_obj)
     {
         std::string ifName = getifNameByIPv4("192.168.59.1");
-        m_p2p_ctrl_obj->remove_GroupInterface(ifName);
+        m_p2p_ctrl_obj->remove_GroupInterface(std::move(ifName));
         ret = m_p2p_ctrl_obj->set_WFDParameters();
     }
     MIRACASTLOG_TRACE("Exiting...");
@@ -881,7 +880,7 @@ void MiracastController::Controller_Thread(void *args)
                                     // Get the third token which is PIN
                                     iss >> token;
                                     MIRACASTLOG_INFO("!!!! P2P-PROV-DISC-SHOW-PIN is [%s] !!!!",token.c_str());
-                                    authType = token;
+                                    authType = std::move(token);
                                 }
                             }
 
@@ -933,7 +932,7 @@ void MiracastController::Controller_Thread(void *args)
                             {
                                 if ( false == another_thunder_req_client_connection_sent )
                                 {
-                                    notify_ConnectionRequest(device_name,received_mac_address);
+                                    notify_ConnectionRequest(std::move(device_name),std::move(received_mac_address));
                                     another_thunder_req_client_connection_sent = true;
                                     MIRACASTLOG_INFO("!!! New Connection Request reported waiting for user action !!!\n");
                                 }
@@ -1155,7 +1154,7 @@ void MiracastController::Controller_Thread(void *args)
                             {
                                 std::string mac_address = get_WFDSourceMACAddress();
                                 std::string device_name = get_WFDSourceName();
-                                m_notify_handler->onMiracastServiceClientConnectionError( mac_address , device_name , error_code );
+                                m_notify_handler->onMiracastServiceClientConnectionError(std::move(mac_address), std::move(device_name), error_code );
                             }
                             MIRACASTLOG_INFO("!!! Restarting Session !!!");
                             restart_session(false);
@@ -1283,7 +1282,7 @@ void MiracastController::Controller_Thread(void *args)
 
                         if ( false == p2p_group_instance_alive )
                         {
-                            connect_device(mac_address,device_name);
+                            connect_device(std::move(mac_address),std::move(device_name));
                             new_thunder_req_client_connection_sent = false;
                             another_thunder_req_client_connection_sent = false;
                             session_restart_required = true;
@@ -1364,6 +1363,7 @@ void MiracastController::Controller_Thread(void *args)
     MIRACASTLOG_TRACE("Exiting...");
 }
 
+/* coverity[pass_by_value : FALSE] */
 void MiracastController::send_thundermsg_to_controller_thread(CONTROLLER_MSGQ_STRUCT controller_msgq_data)
 {
     MIRACASTLOG_TRACE("Entering...");
@@ -1574,12 +1574,12 @@ std::string MiracastController::get_SourcePeerIface(std::string& devMac)
 
 void MiracastController::set_NewSourceMACAddress(std::string mac_address)
 {
-    m_new_device_mac_addr = mac_address;
+    m_new_device_mac_addr = std::move(mac_address);
 }
 
 void MiracastController::set_NewSourceName(std::string device_name)
 {
-    m_new_device_name = device_name;
+    m_new_device_name = std::move(device_name);
 }
 
 std::string MiracastController::get_NewSourceName(void)

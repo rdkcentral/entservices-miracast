@@ -116,6 +116,7 @@ namespace WPEFramework
                         }
 
                     public:
+                        /* coverity[pass_by_value : FALSE] */
                         static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *miracastServiceImplementation, Event event, JsonObject params)
                         {
         #ifndef USE_THUNDER_R4
