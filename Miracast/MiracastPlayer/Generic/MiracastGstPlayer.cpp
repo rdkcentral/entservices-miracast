@@ -674,7 +674,6 @@ void* MiracastGstPlayer::pushbuffer_handler_thread(void *ctx)
             {
                 MIRACASTLOG_ERROR("Error pushing buffer to appsrc");
             }
-            gstBuffer = nullptr;
             buffer = nullptr;
         }
     }
