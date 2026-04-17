@@ -51,13 +51,17 @@ namespace WPEFramework
         MiracastController *MiracastServiceImplementation::m_miracast_ctrler_obj = nullptr;
     
         MiracastServiceImplementation::MiracastServiceImplementation()
-        : _adminLock(), _pwrMgrNotification(*this)
+        : _adminLock(),
+        _pwrMgrNotification(*this),
+        _systemServicesPlugin(nullptr),
+        _systemServicesNotification(*this)
         {
             LOGINFO("Create MiracastServiceImplementation Instance");
             MiracastServiceImplementation::_instance = this;
             MIRACAST::logger_init("MiracastService");
             m_isServiceInitialized = false;
             _registeredEventHandlers = false;
+            _registeredSystemEventHandlers = false;
             m_eService_state = MIRACAST_SERVICE_STATE_IDLE;
             m_CurrentService = nullptr;
             m_isServiceEnabled = false;
@@ -173,7 +177,7 @@ namespace WPEFramework
                 return;
             }
             
-            if (nullptr == m_SystemPluginObj)
+            if (nullptr == m_WiFiPluginObj)
             {
                 string token;
                 // TODO: use interfaces and remove token
@@ -200,16 +204,6 @@ namespace WPEFramework
 
                 string query = "token=" + token;
                 Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), (_T(SERVER_DETAILS)));
-                m_SystemPluginObj = new WPEFramework::JSONRPC::LinkType<Core::JSON::IElement>(_T(SYSTEM_CALLSIGN_VER), (_T("MiracastService")), false, query);
-                if (nullptr == m_SystemPluginObj)
-                {
-                    MIRACASTLOG_ERROR("JSONRPC: %s: initialization failed", SYSTEM_CALLSIGN_VER);
-                }
-                else
-                {
-                    MIRACASTLOG_INFO("JSONRPC: %s: initialization ok", SYSTEM_CALLSIGN_VER);
-                }
-
                 m_WiFiPluginObj = new WPEFramework::JSONRPC::LinkType<Core::JSON::IElement>(_T(WIFI_CALLSIGN_VER), (_T("MiracastService")), false, query);
                 if (nullptr == m_WiFiPluginObj)
                 {
@@ -225,26 +219,22 @@ namespace WPEFramework
 
         bool MiracastServiceImplementation::updateSystemFriendlyName()
         {
-            JsonObject params, Result;
-            bool return_value = false;
+            bool success = false;
+            string friendlyName;
             MIRACASTLOG_TRACE("Entering ...");
 
-            getThunderPlugins();
 
-            if (nullptr == m_SystemPluginObj)
+            if (nullptr == _systemServicesPlugin)
             {
-                MIRACASTLOG_ERROR("m_SystemPluginObj not yet instantiated");
+                MIRACASTLOG_ERROR("_systemServicesPlugin not yet instantiated");
                 return false;
             }
 
-            uint32_t ret = m_SystemPluginObj->Invoke<JsonObject, JsonObject>(THUNDER_RPC_TIMEOUT, _T("getFriendlyName"), params, Result);
-
+            auto ret = _systemServicesPlugin->GetFriendlyName(friendlyName, success);
             if (Core::ERROR_NONE == ret)
             {
-                if (Result["success"].Boolean())
+                if (success)
                 {
-                    std::string friendlyName = "";
-                    friendlyName = Result["friendlyName"].String();
                     bool isServiceEnabled;
                     {
                         lock_guard<recursive_mutex> lock(m_EventMutex);
@@ -252,7 +242,7 @@ namespace WPEFramework
                     }
                     m_miracast_ctrler_obj->set_FriendlyName(friendlyName,isServiceEnabled);
                     MIRACASTLOG_INFO("Miracast FriendlyName=%s", friendlyName.c_str());
-                    return_value = true;
+                    success = true;
                 }
                 else
                 {
@@ -264,7 +254,7 @@ namespace WPEFramework
             {
                 MIRACASTLOG_ERROR("updateSystemFriendlyName call failed E[%u]", ret);
             }
-            return return_value;
+            return success;
         }
 
         void MiracastServiceImplementation::setEnableInternal(bool isEnabled)
@@ -424,13 +414,13 @@ namespace WPEFramework
             	}
 
 
-            	if (m_SystemPluginObj)
+                if (_systemServicesPlugin && _registeredSystemEventHandlers)
             	{
-                	m_SystemPluginObj->Unsubscribe(1000, _T("onFriendlyNameChanged"));
-                	delete m_SystemPluginObj;
-                	m_SystemPluginObj = nullptr;
+                    _systemServicesPlugin->Unregister(&_systemServicesNotification);
+                    _registeredSystemEventHandlers = false;
+                    _systemServicesPlugin->Release();
+                    _systemServicesPlugin = nullptr;
             	}
-
             	MIRACASTLOG_INFO("Disconnect from the COM-RPC socket");
 
             	if (m_isServiceInitialized)
@@ -476,16 +466,13 @@ namespace WPEFramework
 
                     InitializePowerManager(service);
                     InitializePowerState();
+                    InitializeSystemServices(service);
             
                     m_miracast_ctrler_obj = MiracastController::getInstance(ret_code, this,std::move(p2p_ctrl_iface));
                     if (nullptr != m_miracast_ctrler_obj)
                     {
                         getThunderPlugins();
                         // subscribe for event
-                        if (nullptr != m_SystemPluginObj)
-                        {
-                            m_SystemPluginObj->Subscribe<JsonObject>(1000, "onFriendlyNameChanged", &MiracastServiceImplementation::onFriendlyNameUpdateHandler, this);
-                        }
                         if (nullptr != m_WiFiPluginObj)
                         {
                             m_WiFiPluginObj->Subscribe<JsonObject>(1000, "onWIFIStateChanged", &MiracastServiceImplementation::onWIFIStateChangedHandler, this);
@@ -1101,6 +1088,39 @@ namespace WPEFramework
         /*  PowerManager related methods End */
         /* ------------------------------------------------------------------------------------------------------- */
 
+        void MiracastServiceImplementation::InitializeSystemServices(PluginHost::IShell* service)
+        {
+            if (nullptr == _systemServicesPlugin)
+            {
+                _systemServicesPlugin = service->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>("org.rdk.System");
+                if (_systemServicesPlugin != nullptr)
+                {
+                    registerSystemEventHandlers();
+                }
+                else
+                {
+                    MIRACASTLOG_ERROR("Failed to get SystemServices instance");
+                }
+            }
+        }
+
+        void MiracastServiceImplementation::registerSystemEventHandlers()
+        {
+            if (_systemServicesPlugin)
+            {
+                if (Core::ERROR_NONE == _systemServicesPlugin->Register(&_systemServicesNotification))
+                {
+                    MIRACASTLOG_INFO("ISystemServices::Register event registered");
+                    _registeredSystemEventHandlers = true;
+                }
+                else
+                {
+                    MIRACASTLOG_ERROR("Failed to register ISystemServices::Register event");
+                    _registeredSystemEventHandlers = false;
+                }
+            }
+        }
+
         /*  WiFi related methods Start */
         /* ------------------------------------------------------------------------------------------------------- */
         void MiracastServiceImplementation::setWiFiStateInternal(DEVICE_WIFI_STATES wifiState)
@@ -1155,24 +1175,20 @@ namespace WPEFramework
 
         /*  JsonRPC Event Subscribed handler methods Start */
         /* ------------------------------------------------------------------------------------------------------- */
-        void MiracastServiceImplementation::onFriendlyNameUpdateHandler(const JsonObject &parameters)
+        void MiracastServiceImplementation::onFriendlyNameUpdateHandler(const string& friendlyName)
         {
             MIRACASTLOG_TRACE("Entering ...");
-            string message;
-            string value;
-            parameters.ToString(message);
-            MIRACASTLOG_INFO("[Friendly Name Event], [%s]", message.c_str());
+            MIRACASTLOG_INFO("[Friendly Name Event], [%s]", friendlyName.c_str());
 
-            if (parameters.HasLabel("friendlyName"))
+            if (!friendlyName.empty())
             {
-                value = parameters["friendlyName"].String();
                 bool isServiceEnabled = false;
                 {
                     lock_guard<recursive_mutex> lock(m_EventMutex);
                     isServiceEnabled = m_isServiceEnabled;
                 }
-                m_miracast_ctrler_obj->set_FriendlyName(value, isServiceEnabled);
-                MIRACASTLOG_INFO("Miracast FriendlyName=%s", value.c_str());
+                m_miracast_ctrler_obj->set_FriendlyName(friendlyName, isServiceEnabled);
+                MIRACASTLOG_INFO("Miracast FriendlyName=%s", friendlyName.c_str());
             }
             MIRACASTLOG_TRACE("Exiting ...");
         }
