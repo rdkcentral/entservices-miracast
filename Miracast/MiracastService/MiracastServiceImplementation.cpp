@@ -1094,7 +1094,7 @@ namespace WPEFramework
         {
             if (nullptr == _systemServicesPlugin)
             {
-                _systemServicesPlugin = service->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>("org.rdk.System");
+                _systemServicesPlugin = service->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
                 if (_systemServicesPlugin != nullptr)
                 {
                     registerSystemEventHandlers();
