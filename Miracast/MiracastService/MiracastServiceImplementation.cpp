@@ -468,11 +468,11 @@ namespace WPEFramework
 
                     InitializePowerManager(service);
                     InitializePowerState();
-                    InitializeSystemServices(service);
-            
+
                     m_miracast_ctrler_obj = MiracastController::getInstance(ret_code, this,std::move(p2p_ctrl_iface));
                     if (nullptr != m_miracast_ctrler_obj)
                     {
+                        InitializeSystemServices(service);
                         getThunderPlugins();
                         // subscribe for event
                         if (nullptr != m_WiFiPluginObj)
