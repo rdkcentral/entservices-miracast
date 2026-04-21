@@ -202,7 +202,7 @@ namespace WPEFramework
                     public:
                         void OnFriendlyNameChanged(const string& friendlyName) override
                         {
-                            LOGINFO("OnFriendlyNameChanged [%s]", friendlyName.c_str());
+                            MIRACASTLOG_INFO("OnFriendlyNameChanged [%s]", friendlyName.c_str());
                             _parent.onFriendlyNameUpdateHandler(friendlyName);
                         }
 
