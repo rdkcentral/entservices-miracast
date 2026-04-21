@@ -414,10 +414,12 @@ namespace WPEFramework
             	}
 
 
-                if (_systemServicesPlugin && _registeredSystemEventHandlers)
+                if (_systemServicesPlugin)
             	{
-                    _systemServicesPlugin->Unregister(&_systemServicesNotification);
-                    _registeredSystemEventHandlers = false;
+					if (_registeredSystemEventHandlers) {
+                        _systemServicesPlugin->Unregister(&_systemServicesNotification);
+                        _registeredSystemEventHandlers = false;
+					}
                     _systemServicesPlugin->Release();
                     _systemServicesPlugin = nullptr;
             	}
