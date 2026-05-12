@@ -30,6 +30,7 @@ set(MIRACAST_PLAYER_IMPLEMENTATION ${PLUGIN_NAME}Implementation)
 add_definitions(-DPLUGIN_MIRACAST_PLAYER_IMPLEMENTATION_NAME="${MIRACAST_PLAYER_IMPLEMENTATION}")
 
 find_package(${NAMESPACE}Plugins REQUIRED)
+find_package(${NAMESPACE}Helpers REQUIRED)
 find_package(IARMBus)
 find_package(GLIB REQUIRED)
 find_package(${NAMESPACE}Plugins REQUIRED)
@@ -56,9 +57,7 @@ set_target_properties(${MODULE_NAME} PROPERTIES
 
 target_compile_definitions(${MODULE_NAME} PRIVATE MODULE_NAME=Plugin_${PLUGIN_NAME})
 
-include_directories(../../helpers)
-
-target_link_libraries(${MODULE_NAME} PRIVATE CompileSettingsDebug::CompileSettingsDebug ${NAMESPACE}Plugins::${NAMESPACE}Plugins ${NAMESPACE}Definitions::${NAMESPACE}Definitions)
+target_link_libraries(${MODULE_NAME} PRIVATE CompileSettingsDebug::CompileSettingsDebug ${NAMESPACE}Plugins::${NAMESPACE}Plugins ${NAMESPACE}Definitions::${NAMESPACE}Definitions ${NAMESPACE}::${NAMESPACE}Helpers)
 
 install(TARGETS ${MODULE_NAME}
         DESTINATION lib/${STORAGE_DIRECTORY}/plugins)
@@ -93,7 +92,6 @@ endif()
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ./)
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ../common)
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE RTSP)
-target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ../../helpers)
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ${IARMBUS_INCLUDE_DIRS})
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ${GSTREAMER_INCLUDES})
@@ -104,6 +102,7 @@ target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${GLIB_LIBRARIES})
 target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${GSTREAMER_LIBRARIES})
 target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${GSTREAMERBASE_LIBRARIES})
 target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE -lpthread)
+target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${NAMESPACE}::${NAMESPACE}Helpers)
 
 if(WPEFRAMEWORK_SECURITYUTIL_FOUND)
 	target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${NAMESPACE}SecurityUtil)
