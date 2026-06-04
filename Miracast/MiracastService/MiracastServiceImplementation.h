@@ -25,6 +25,7 @@
 #include <interfaces/IMiracastService.h>
 #include <interfaces/IPowerManager.h>
 #include<interfaces/IConfiguration.h>
+#include <interfaces/ISystemServices.h>
 
 #include <MiracastController.h>
 #include "libIARM.h"
@@ -185,6 +186,34 @@ namespace WPEFramework
                         MiracastServiceImplementation& _parent;
                 }; // class PowerManagerNotification
 
+                class SystemServicesNotification : public Exchange::ISystemServices::INotification
+                {
+                    private:
+                        SystemServicesNotification(const SystemServicesNotification&) = delete;
+                        SystemServicesNotification& operator=(const SystemServicesNotification&) = delete;
+
+                    public:
+                        explicit SystemServicesNotification(MiracastServiceImplementation& parent)
+                        : _parent(parent)
+                        {
+                        }
+                        ~SystemServicesNotification() override = default;
+
+                    public:
+                        void OnFriendlyNameChanged(const string& friendlyName) override
+                        {
+                            MIRACASTLOG_INFO("OnFriendlyNameChanged [%s]", friendlyName.c_str());
+                            _parent.onFriendlyNameUpdateHandler(friendlyName);
+                        }
+
+                        BEGIN_INTERFACE_MAP(SystemServicesNotification)
+                        INTERFACE_ENTRY(Exchange::ISystemServices::INotification)
+                        END_INTERFACE_MAP
+
+                    private:
+                        MiracastServiceImplementation& _parent;
+                };
+
                 mutable Core::CriticalSection _adminLock;
                 std::mutex m_DiscoveryStateMutex;
                 std::recursive_mutex m_EventMutex;
@@ -192,7 +221,6 @@ namespace WPEFramework
                 std::string m_src_dev_mac{""};
                 std::string m_src_dev_name{""};
                 std::string m_sink_dev_ip{""};
-                WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement> *m_SystemPluginObj = nullptr;
                 WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement> *m_WiFiPluginObj = nullptr;
                 std::list<Exchange::IMiracastService::INotification *> _miracastServiceNotification; // List of registered notifications
                 PluginHost::IShell *m_CurrentService;
@@ -221,8 +249,12 @@ namespace WPEFramework
 
                 void setWiFiStateInternal(DEVICE_WIFI_STATES wifiState);
 
-                void onFriendlyNameUpdateHandler(const JsonObject &parameters);
+                void onFriendlyNameUpdateHandler(const string& friendlyName);
                 void onWIFIStateChangedHandler(const JsonObject &parameters);
+
+                void registerSystemEventHandlers();
+                void unregisterSystemEventHandlers();
+                void InitializeSystemServices(PluginHost::IShell* service);
 
                 static gboolean monitor_friendly_name_timercallback(gpointer userdata);
                 static gboolean monitor_wifi_connection_state_timercallback(gpointer userdata);
@@ -235,6 +267,10 @@ namespace WPEFramework
                 static PowerManagerInterfaceRef _powerManagerPlugin;
                 Core::Sink<PowerManagerNotification> _pwrMgrNotification;
                 bool _registeredEventHandlers;
+
+                Exchange::ISystemServices* _systemServicesPlugin;
+                Core::Sink<SystemServicesNotification> _systemServicesNotification;
+                bool _registeredSystemEventHandlers;
 
                 void onPowerModeChanged(const PowerState currentState, const PowerState newState);
 
