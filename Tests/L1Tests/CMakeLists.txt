@@ -33,7 +33,7 @@ set (TEST_LIB
     ${NAMESPACE}Plugins::${NAMESPACE}Plugins
 )
 
-set (TEST_INC ../../helpers)
+set (TEST_INC)
 
 #########################################################################################
 # add_plugin_test_ex: Macro to add plugin tests, it will append to TEST_SRC, TEST_INC,
@@ -103,7 +103,7 @@ macro(add_plugin_test plugin_name test_files)
 endmacro()
 
 # PLUGIN_MIRACAST
-set (MIRACAST_INC ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastPlayer ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastPlayer/RTSP ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastService ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastService/P2P ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/common ${CMAKE_SOURCE_DIR}/../entservices-miracast/helpers)
+set (MIRACAST_INC ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastPlayer ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastPlayer/RTSP ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastService ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/MiracastService/P2P ${CMAKE_SOURCE_DIR}/../entservices-miracast/Miracast/common ${CMAKE_SOURCE_DIR}/../entservices-helpers/helpers)
 set (MIRACAST_LIBS ${NAMESPACE}MiracastPlayer ${NAMESPACE}MiracastService ${NAMESPACE}MiracastServiceImplementation ${NAMESPACE}MiracastPlayerImplementation)
 set (MIRACAST_SRC tests/test_MiracastService.cpp tests/test_MiracastPlayer.cpp)
 add_plugin_test_ex(PLUGIN_MIRACAST "${MIRACAST_SRC}" "${MIRACAST_INC}" "${MIRACAST_LIBS}")
