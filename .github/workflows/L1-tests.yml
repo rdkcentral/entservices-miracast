@@ -146,7 +146,7 @@ jobs:
         with:
           repository: rdkcentral/entservices-miracast
           path: entservices-miracast
-          ref: feature/RDKEMW-16743
+          ref: develop
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
