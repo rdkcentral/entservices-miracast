@@ -45,7 +45,7 @@ cd ..
 git clone --branch develop https://github.com/rdkcentral/entservices-helpers.git
 cd "$GITHUB_WORKSPACE"
 
-git clone --branch feature/RDKEMW-22169 https://github.com/rdkcentral/entservices-testframework.git
+git clone --branch develop https://github.com/rdkcentral/entservices-testframework.git
 
 git clone --branch main https://github.com/rdkcentral/networkmanager.git
 
