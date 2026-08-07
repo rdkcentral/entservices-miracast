@@ -29,12 +29,12 @@ cd ..
 # Clone the required repositories
 
 
-git clone -b R4_4-RDK https://github.com/rdkcentral/ThunderTools.git
+git clone --branch  R4_4-RDK https://github.com/rdkcentral/ThunderTools.git
 cd ThunderTools
 git checkout $THUNDER_TOOLS_COMMIT_SHA
 cd ..
 
-git clone -b R4_4-RDK https://github.com/rdkcentral/Thunder.git
+git clone --branch  R4_4-RDK https://github.com/rdkcentral/Thunder.git
 cd Thunder
 git checkout $THUNDER_COMMIT_SHA
 cd ..
