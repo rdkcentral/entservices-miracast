@@ -202,6 +202,11 @@ static inline void SoC_ReleaseAudioSinkProperty(GstElement* sink) {}
 #endif
 EOF
 
+# Create mock MiracastPlayerHal library for native/coverage builds
+mkdir -p ${GITHUB_WORKSPACE}/install/usr/lib
+echo "int _MiracastPlayerHal_stub = 0;" | gcc -c -o /tmp/miracast_player_hal.o -
+ar rcs ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /tmp/miracast_player_hal.o
+
 echo "files created successfully"
 echo "======================================================================================"
 
