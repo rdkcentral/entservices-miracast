@@ -187,6 +187,7 @@ touch btmgr.h
 touch rdk_logger_milestone.h
 touch gdialservice.h
 touch gdialservicecommon.h
+touch SoC_MiracastPlayer.h
 echo "files created successfully"
 echo "======================================================================================"
 
