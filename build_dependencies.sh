@@ -206,6 +206,8 @@ EOF
 mkdir -p ${GITHUB_WORKSPACE}/install/usr/lib
 echo "int _MiracastPlayerHal_stub = 0;" | gcc -x c -c -o /tmp/miracast_player_hal.o -
 ar rcs ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /tmp/miracast_player_hal.o
+# Copy to system library path for linker discovery
+cp ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /usr/lib/x86_64-linux-gnu/
 
 echo "files created successfully"
 echo "======================================================================================"
