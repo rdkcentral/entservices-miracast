@@ -187,7 +187,21 @@ touch btmgr.h
 touch rdk_logger_milestone.h
 touch gdialservice.h
 touch gdialservicecommon.h
-touch SoC_MiracastPlayer.h
+
+#Create SoC-specific Miracast Player header with stub implementations
+cat > SoC_MiracastPlayer.h << 'EOF'
+#ifndef _SOC_MIRACAST_PLAYER_H_
+#define _SOC_MIRACAST_PLAYER_H_
+
+#include <gst/gst.h>
+
+static inline void SoC_ConfigureVideoDecodeErrorPolicy(void) {}
+static inline GstElement* SoC_GetAudioSinkProperty(void) { return nullptr; }
+static inline void SoC_ReleaseAudioSinkProperty(GstElement* sink) {}
+
+#endif
+EOF
+
 echo "files created successfully"
 echo "======================================================================================"
 
