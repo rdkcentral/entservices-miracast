@@ -12,7 +12,7 @@ cd ${GITHUB_WORKSPACE}
 #1. Install Dependencies and packages
 
 apt update
-apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libwpa-client-dev
 pip install jsonref
 
 ############################
@@ -187,6 +187,28 @@ touch btmgr.h
 touch rdk_logger_milestone.h
 touch gdialservice.h
 touch gdialservicecommon.h
+
+#Create SoC-specific Miracast Player header with stub implementations
+cat > SoC_MiracastPlayer.h << 'EOF'
+#ifndef _SOC_MIRACAST_PLAYER_H_
+#define _SOC_MIRACAST_PLAYER_H_
+
+#include <gst/gst.h>
+
+static inline void SoC_ConfigureVideoDecodeErrorPolicy(void) {}
+static inline GstElement* SoC_GetAudioSinkProperty(void) { return nullptr; }
+static inline void SoC_ReleaseAudioSinkProperty(GstElement* sink) {}
+
+#endif
+EOF
+
+# Create mock MiracastPlayerHal library for native/coverage builds
+mkdir -p ${GITHUB_WORKSPACE}/install/usr/lib
+echo "int _MiracastPlayerHal_stub = 0;" | gcc -x c -c -o /tmp/miracast_player_hal.o -
+ar rcs ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /tmp/miracast_player_hal.o
+# Copy to system library path for linker discovery
+cp ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /usr/lib/x86_64-linux-gnu/
+
 echo "files created successfully"
 echo "======================================================================================"
 
