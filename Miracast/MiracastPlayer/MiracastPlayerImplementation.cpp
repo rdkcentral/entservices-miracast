@@ -24,6 +24,7 @@
 #include "UtilsJsonRpc.h"
 
 #include "UtilsSynchroIarm.hpp"
+#include <cctype>
 
 static std::vector<std::string> m_envArgs;
 
@@ -34,6 +35,34 @@ namespace WPEFramework
         SERVICE_REGISTRATION(MiracastPlayerImplementation, MIRACAST_PLAYER_API_VERSION_NUMBER_MAJOR, MIRACAST_PLAYER_API_VERSION_NUMBER_MINOR, MIRACAST_PLAYER_API_VERSION_NUMBER_PATCH);
         MiracastPlayerImplementation *MiracastPlayerImplementation::_instance = nullptr;
         MiracastRTSPMsg *MiracastPlayerImplementation::m_miracast_rtsp_obj = nullptr;
+
+        bool isValidEnvName(const std::string& name)
+        {
+            // Environment variable names must be alphanumeric or underscore
+            for (char c : name)
+            {
+                if (!isalnum(c) && c != '_')
+                {
+                    return false;
+                }
+            }
+            return !name.empty();
+        }
+
+        bool isValidEnvValue(const std::string& value)
+        {
+            // Reject shell metacharacters that could enable injection
+            const char* dangerousChars[] = {"`", "$", "(", ")", ";", "&", "|", "<", ">", "\n", "\r"};
+            
+            for (const char* dangerous : dangerousChars)
+            {
+                if (value.find(dangerous) != std::string::npos)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
 
         MiracastPlayerImplementation::MiracastPlayerImplementation()
         : _adminLock()
@@ -388,6 +417,20 @@ namespace WPEFramework
                 {
                     std::string argName = entry.argName;
                     std::string argValue = entry.argValue;
+
+                    // Validate environment variable name and value
+                    if (!isValidEnvName(argName))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
+                        result.message = "Invalid environment variable name";
+                        return Core::ERROR_INVALID_PARAMETER;
+                    }
+                    if (!isValidEnvValue(argValue))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
+                        result.message = "Invalid environment variable value";
+                        return Core::ERROR_INVALID_PARAMETER;
+                    }
 
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
