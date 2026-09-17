@@ -41,7 +41,7 @@ namespace WPEFramework
             // Environment variable names must be alphanumeric or underscore
             for (char c : name)
             {
-                if (!isalnum(c) && c != '_')
+                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
                 {
                     return false;
                 }
@@ -62,6 +62,21 @@ namespace WPEFramework
                 }
             }
             return true;
+        }
+
+        std::string sanitizeShellArgument(const std::string& input)
+        {
+            // Remove shell metacharacters and dangerous characters
+            std::string result;
+            for (char c : input)
+            {
+                // Allow only alphanumeric, space, hyphen, underscore, dot, and colon
+                if (std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':')
+                {
+                    result += c;
+                }
+            }
+            return result;
         }
 
         MiracastPlayerImplementation::MiracastPlayerImplementation()
@@ -518,6 +533,20 @@ namespace WPEFramework
                     std::string argName = entry.argName;
                     std::string argValue = entry.argValue;
 
+                    // Validate environment variable name and value
+                    if (!isValidEnvName(argName))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
+                        result.message = "Invalid environment variable name";
+                        return Core::ERROR_INVALID_PARAMETER;
+                    }
+                    if (!isValidEnvValue(argValue))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
+                        result.message = "Invalid environment variable value";
+                        return Core::ERROR_INVALID_PARAMETER;
+                    }
+
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
                     if (0 == setenv(argName.c_str(), argValue.c_str(), 1))
@@ -604,10 +633,11 @@ namespace WPEFramework
             if (0 == access("/opt/miracast_autoconnect", F_OK))
             {
                 char commandBuffer[768] = {0};
+                std::string sanitizedMac = sanitizeShellArgument(client_mac);
                 snprintf( commandBuffer,
                         sizeof(commandBuffer),
                         "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
-                        client_mac.c_str(),
+                        sanitizedMac.c_str(),
                         stateDescription(player_state).c_str(),
                         std::to_string(reason_code).c_str());
                 MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
