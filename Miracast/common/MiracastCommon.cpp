@@ -252,7 +252,17 @@ bool MiracastCommon::execute_PopenCommand( const char* popen_command, const char
         memset( buffer , 0x00 , sizeof(buffer));
         while (getline(&current_line_buffer, &len, popen_pipe_ptr) != -1)
         {
-            sprintf(buffer + strlen(buffer), "%s" ,  current_line_buffer);
+            // Fix stack buffer overflow (RDKEMW-24514) - use snprintf instead of sprintf
+            size_t remaining = sizeof(buffer) - strlen(buffer) - 1;
+            if (remaining > 0)
+            {
+                snprintf(buffer + strlen(buffer), remaining, "%s", current_line_buffer);
+            }
+            else
+            {
+                MIRACASTLOG_WARN("Buffer full, truncating output");
+                break;
+            }
             MIRACASTLOG_INFO("#### popen Output[%s] ####", buffer);
         }
         pclose(popen_pipe_ptr);
