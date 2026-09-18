@@ -1543,7 +1543,13 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m6_ack_m7_send_request(std::string rt
                 MIRACASTLOG_TRACE("Session Number[%s]\n",session_number.c_str());
                 if (match.size() > 2 && match[2].matched)
                 {
-                    timeoutValue = std::stoi(match[2]);
+                    try {
+                        timeoutValue = std::stoi(match[2]);
+                    } catch (const std::exception &e) {
+                        MIRACASTLOG_ERROR("Invalid timeout value '%s': %s; using default\n",
+                                            match[2].str().c_str(), e.what());
+                        timeoutValue = RTSP_DFLT_KEEP_ALIVE_WAIT_TIMEOUT_SEC;
+                    }
                     MIRACASTLOG_INFO("timeoutValue[%d] in M6 ACK\n",timeoutValue);
                 }
                 else
@@ -1901,8 +1907,13 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
         if (valueEnd != std::string::npos)
         {
             std::string lengthStr = input.substr(valueStart, valueEnd - valueStart);
-            size_t expectedLength = std::stoul(lengthStr);
-            returnvalue = actualContentLength - expectedLength;
+            try {
+                size_t expectedLength = std::stoul(lengthStr);
+                returnvalue = actualContentLength - expectedLength;
+            } catch (const std::exception &e) {
+                MIRACASTLOG_ERROR("Invalid Content-Length '%s': %s\n", lengthStr.c_str(), e.what());
+                /* returnvalue stays 0 — treat as if header was absent */
+            }
         }
     }
     // Content-Length not found or invalid format
