@@ -252,7 +252,14 @@ bool MiracastCommon::execute_PopenCommand( const char* popen_command, const char
         memset( buffer , 0x00 , sizeof(buffer));
         while (getline(&current_line_buffer, &len, popen_pipe_ptr) != -1)
         {
-            sprintf(buffer + strlen(buffer), "%s" ,  current_line_buffer);
+            const size_t buffer_length = strlen(buffer);
+            const size_t available = sizeof(buffer) - buffer_length;
+            if (available <= 1)
+            {
+                MIRACASTLOG_WARNING("Buffer full, truncating output");
+                break;
+            }
+            snprintf(buffer + buffer_length, available, "%s", current_line_buffer);
             MIRACASTLOG_INFO("#### popen Output[%s] ####", buffer);
         }
         pclose(popen_pipe_ptr);
