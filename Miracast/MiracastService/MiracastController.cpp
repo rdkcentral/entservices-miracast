@@ -264,7 +264,7 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
     std::size_t len = 0;
     unsigned char retry_count = 5;
 
-    sprintf( sys_cls_file_ifidx , "/sys/class/net/%s/ifindex" , interface.c_str());
+    snprintf( sys_cls_file_ifidx , sizeof(sys_cls_file_ifidx), "/sys/class/net/%s/ifindex" , interface.c_str());
 
     std::ifstream ifIndexFile(sys_cls_file_ifidx);
 
@@ -273,9 +273,7 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
         return std::string("");
     }
 
-    sprintf(command, "/sbin/udhcpc -v -i ");
-    sprintf(command + strlen(command), "%s" , interface.c_str());
-    sprintf(command + strlen(command), " -s /etc/wifi_p2p/udhcpc.script 2>&1");
+    snprintf(command, sizeof(command), "/sbin/udhcpc -v -i %s -s /etc/wifi_p2p/udhcpc.script 2>&1", interface.c_str());
     MIRACASTLOG_VERBOSE("command : [%s]", command);
 
     while ( retry_count-- )
@@ -291,7 +289,11 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
             memset( data , 0x00 , sizeof(data));
             while (getline(&current_line_buffer, &len, popen_file_ptr) != -1)
             {
-                sprintf(data + strlen(data), "%s" ,  current_line_buffer);
+                size_t used = strlen(data);
+                size_t remaining = sizeof(data) - used;
+                if (remaining > 1) {
+                    snprintf(data + used, remaining, "%s", current_line_buffer);
+                }
                 popen_buffer = data;
                 MIRACASTLOG_INFO("data : [%s][%s]", data,popen_buffer.c_str());
 
