@@ -19,6 +19,17 @@
 
 #include "MiracastCommon.h"
 
+bool appendMiracastCommandOutput(char* destination, const size_t capacity, const char* line)
+{
+    if (destination == nullptr || line == nullptr || capacity == 0)
+        return false;
+    const size_t used = strnlen(destination, capacity);
+    if (used >= capacity)
+        return false;
+    const int written = snprintf(destination + used, capacity - used, "%s", line);
+    return written >= 0 && static_cast<size_t>(written) < capacity - used;
+}
+
 MiracastThread::MiracastThread(std::string thread_name, size_t stack_size, size_t msg_size, size_t queue_depth, void (*callback)(void *), void *user_data)
 {
     MIRACASTLOG_TRACE("Entering...");
@@ -252,14 +263,11 @@ bool MiracastCommon::execute_PopenCommand( const char* popen_command, const char
         memset( buffer , 0x00 , sizeof(buffer));
         while (getline(&current_line_buffer, &len, popen_pipe_ptr) != -1)
         {
-            const size_t buffer_length = strlen(buffer);
-            const size_t available = sizeof(buffer) - buffer_length;
-            if (available <= 1)
+            if (!appendMiracastCommandOutput(buffer, sizeof(buffer), current_line_buffer))
             {
                 MIRACASTLOG_WARNING("Buffer full, truncating output");
                 break;
             }
-            snprintf(buffer + buffer_length, available, "%s", current_line_buffer);
             MIRACASTLOG_INFO("#### popen Output[%s] ####", buffer);
         }
         pclose(popen_pipe_ptr);
