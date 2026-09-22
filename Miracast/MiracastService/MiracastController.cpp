@@ -21,6 +21,17 @@
 
 void ControllerThreadCallback(void *args);
 
+bool appendDhcpOutput(char* destination, const size_t capacity, const char* line)
+{
+    if (destination == nullptr || line == nullptr || capacity == 0)
+        return false;
+    const size_t used = strnlen(destination, capacity);
+    if (used >= capacity)
+        return false;
+    const int written = snprintf(destination + used, capacity - used, "%s", line);
+    return written >= 0 && static_cast<size_t>(written) < capacity - used;
+}
+
 MiracastController *MiracastController::m_miracast_ctrl_obj{nullptr};
 
 MiracastController *MiracastController::getInstance(MiracastError &error_code, MiracastServiceNotifier *notifier, std::string p2p_ctrl_iface)
@@ -289,11 +300,7 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
             memset( data , 0x00 , sizeof(data));
             while (getline(&current_line_buffer, &len, popen_file_ptr) != -1)
             {
-                size_t used = strlen(data);
-                size_t remaining = sizeof(data) - used;
-                if (remaining > 1) {
-                    snprintf(data + used, remaining, "%s", current_line_buffer);
-                }
+                appendDhcpOutput(data, sizeof(data), current_line_buffer);
                 popen_buffer = data;
                 MIRACASTLOG_INFO("data : [%s][%s]", data,popen_buffer.c_str());
 
