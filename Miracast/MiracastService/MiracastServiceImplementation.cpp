@@ -24,8 +24,20 @@
 #include "UtilsJsonRpc.h"
 
 #include "UtilsSynchroIarm.hpp"
+#include <cctype>
 
 using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
+
+std::string sanitizeAutoconnectValue(const std::string& input, const bool allowSpace)
+{
+    std::string output;
+    output.reserve(input.size());
+    for (unsigned char character : input) {
+        if (std::isalnum(character) || character == '.' || character == ':' || character == '-' || character == '_' || (allowSpace && character == ' '))
+            output += static_cast<char>(character);
+    }
+    return output;
+}
 
 #define MIRACAST_DEVICE_PROPERTIES_FILE "/etc/device.properties"
 #define SERVER_DETAILS "127.0.0.1:9998"
@@ -916,22 +928,10 @@ namespace WPEFramework
                     /* Security: sanitize peer-controlled values before shell interpolation.
                      * Only allow characters valid in IP addresses, MAC addresses, and device names.
                      * This prevents OS command injection via crafted SSID / device names. */
-                    auto sanitizeShellArg = [](const std::string &input, const std::string &allowedExtra = "") -> std::string {
-                        std::string out;
-                        out.reserve(input.size());
-                        for (char c : input) {
-                            if (std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == ':' || c == '-' || c == '_'
-                                || allowedExtra.find(c) != std::string::npos) {
-                                out += c;
-                            }
-                            /* silently drop disallowed characters */
-                        }
-                        return out;
-                    };
-                    std::string safe_ip   = sanitizeShellArg(src_dev_ip);
-                    std::string safe_mac  = sanitizeShellArg(src_dev_mac);
-                    std::string safe_name = sanitizeShellArg(src_dev_name, " ");
-                    std::string safe_sink = sanitizeShellArg(sink_dev_ip);
+                    std::string safe_ip   = sanitizeAutoconnectValue(src_dev_ip, false);
+                    std::string safe_mac  = sanitizeAutoconnectValue(src_dev_mac, false);
+                    std::string safe_name = sanitizeAutoconnectValue(src_dev_name, true);
+                    std::string safe_sink = sanitizeAutoconnectValue(sink_dev_ip, false);
 
                     if (safe_ip.empty() || safe_mac.empty() || safe_name.empty() || safe_sink.empty()) {
                         MIRACASTLOG_ERROR("Rejected autoconnect: sanitized device parameter was empty");

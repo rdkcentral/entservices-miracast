@@ -35,6 +35,17 @@
 #include "WorkerPoolImplementation.h"
 #include "MiracastServiceImplementation.h"
 #include <sys/time.h>
+
+std::string sanitizeAutoconnectValue(const std::string& input, bool allowSpace);
+
+TEST(MiracastServiceSecurityTest, ConstrainsAutoconnectPeerValues)
+{
+    EXPECT_EQ("192.168.1.2", sanitizeAutoconnectValue("192.168.1.2", false));
+    EXPECT_EQ("peer name-1", sanitizeAutoconnectValue("peer name-1", true));
+    EXPECT_EQ("peername-1", sanitizeAutoconnectValue("peer;name-1", true));
+    EXPECT_EQ("", sanitizeAutoconnectValue("`$()&|<>", false));
+    EXPECT_EQ("nospaces", sanitizeAutoconnectValue("no spaces", false));
+}
 #include <future>
 
 using namespace WPEFramework;
