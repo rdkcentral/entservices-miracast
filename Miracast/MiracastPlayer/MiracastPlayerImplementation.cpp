@@ -71,10 +71,11 @@ namespace WPEFramework
             for (char c : input)
             {
                 // Allow only alphanumeric, space, hyphen, underscore, dot, and colon
-                if (std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':')
+                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':'))
                 {
-                    result += c;
+                    return {};
                 }
+                result += c;
             }
             return result;
         }
@@ -634,14 +635,21 @@ namespace WPEFramework
             {
                 char commandBuffer[768] = {0};
                 std::string sanitizedMac = sanitizeShellArgument(client_mac);
-                snprintf( commandBuffer,
-                        sizeof(commandBuffer),
-                        "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
-                        sanitizedMac.c_str(),
-                        stateDescription(player_state).c_str(),
-                        std::to_string(reason_code).c_str());
-                MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
-                MiracastCommon::execute_SystemCommand( commandBuffer );
+                if (sanitizedMac.empty())
+                {
+                    MIRACASTLOG_ERROR("Rejected unsafe client identifier");
+                }
+                else
+                {
+                    snprintf( commandBuffer,
+                            sizeof(commandBuffer),
+                            "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
+                            sanitizedMac.c_str(),
+                            stateDescription(player_state).c_str(),
+                            std::to_string(reason_code).c_str());
+                    MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
+                    MiracastCommon::execute_SystemCommand( commandBuffer );
+                }
             }
             else
             {

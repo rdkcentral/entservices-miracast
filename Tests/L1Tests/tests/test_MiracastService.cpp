@@ -42,7 +42,7 @@ std::string sanitizeShellArgument(const std::string& input);
 
 TEST(MiracastServiceSecurityTest, SanitizesPeerControlledShellArguments)
 {
-    EXPECT_EQ("peer-name_1", WPEFramework::Plugin::sanitizeShellArgument("peer;name_1"));
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("peer;name_1"));
     EXPECT_EQ("192.168.1.2", WPEFramework::Plugin::sanitizeShellArgument("192.168.1.2"));
     EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
 }

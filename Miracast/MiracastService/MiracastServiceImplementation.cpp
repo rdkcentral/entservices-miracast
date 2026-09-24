@@ -52,10 +52,11 @@ namespace WPEFramework
             for (char c : input)
             {
                 // Allow only alphanumeric, space, hyphen, underscore, dot, and colon
-                if (std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':')
+                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':'))
                 {
-                    result += c;
+                    return {};
                 }
+                result += c;
             }
             return result;
         }
@@ -934,6 +935,11 @@ namespace WPEFramework
                     std::string sanitizedDevIp = sanitizeShellArgument(src_dev_ip);
                     std::string sanitizedDevMac = sanitizeShellArgument(src_dev_mac);
                     std::string sanitizedSinkIp = sanitizeShellArgument(sink_dev_ip);
+                    if (sanitizedDevName.empty() || sanitizedDevIp.empty() || sanitizedDevMac.empty() || sanitizedSinkIp.empty())
+                    {
+                        MIRACASTLOG_ERROR("Rejected unsafe autoconnect parameters");
+                        return;
+                    }
                     snprintf( commandBuffer,
                             sizeof(commandBuffer),
                             "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",

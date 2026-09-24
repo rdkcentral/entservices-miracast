@@ -48,7 +48,7 @@ TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentAndShellInputs)
     EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("safe-value_1"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("$(command)"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\nnext"));
-    EXPECT_EQ("device-name_1", WPEFramework::Plugin::sanitizeShellArgument("device;name_1"));
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("device;name_1"));
     EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
 }
 #include <sys/time.h>
