@@ -42,9 +42,9 @@ TEST(MiracastServiceSecurityTest, ConstrainsAutoconnectPeerValues)
 {
     EXPECT_EQ("192.168.1.2", sanitizeAutoconnectValue("192.168.1.2", false));
     EXPECT_EQ("peer name-1", sanitizeAutoconnectValue("peer name-1", true));
-    EXPECT_EQ("peername-1", sanitizeAutoconnectValue("peer;name-1", true));
+    EXPECT_EQ("", sanitizeAutoconnectValue("peer;name-1", true));
     EXPECT_EQ("", sanitizeAutoconnectValue("`$()&|<>", false));
-    EXPECT_EQ("nospaces", sanitizeAutoconnectValue("no spaces", false));
+    EXPECT_EQ("", sanitizeAutoconnectValue("no spaces", false));
 }
 #include <future>
 

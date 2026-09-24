@@ -33,8 +33,9 @@ std::string sanitizeAutoconnectValue(const std::string& input, const bool allowS
     std::string output;
     output.reserve(input.size());
     for (unsigned char character : input) {
-        if (std::isalnum(character) || character == '.' || character == ':' || character == '-' || character == '_' || (allowSpace && character == ' '))
-            output += static_cast<char>(character);
+        if (!(std::isalnum(character) || character == '.' || character == ':' || character == '-' || character == '_' || (allowSpace && character == ' ')))
+            return {};
+        output += static_cast<char>(character);
     }
     return output;
 }
