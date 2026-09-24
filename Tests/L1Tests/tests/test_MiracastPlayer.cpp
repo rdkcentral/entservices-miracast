@@ -51,7 +51,8 @@ TEST(MiracastPlayerSecurityTest, ParsesRtspNumericFieldsSafely)
     EXPECT_EQ(128u, sizeValue);
     EXPECT_FALSE(parseRtspSize("128suffix", sizeValue));
     EXPECT_FALSE(parseRtspSize("999999999999999999999999", sizeValue));
-}#include <sys/time.h>
+}
+#include <sys/time.h>
 #include <future>
 #include <thread>
 
