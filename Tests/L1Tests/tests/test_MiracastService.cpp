@@ -35,6 +35,17 @@
 #include "WorkerPoolImplementation.h"
 #include "MiracastServiceImplementation.h"
 #include <sys/time.h>
+
+namespace WPEFramework { namespace Plugin {
+std::string sanitizeShellArgument(const std::string& input);
+} }
+
+TEST(MiracastServiceSecurityTest, SanitizesPeerControlledShellArguments)
+{
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("peer;name_1"));
+    EXPECT_EQ("192.168.1.2", WPEFramework::Plugin::sanitizeShellArgument("192.168.1.2"));
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
+}
 #include <future>
 
 using namespace WPEFramework;

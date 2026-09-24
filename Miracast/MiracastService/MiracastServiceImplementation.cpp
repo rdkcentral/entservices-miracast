@@ -24,6 +24,7 @@
 #include "UtilsJsonRpc.h"
 
 #include "UtilsSynchroIarm.hpp"
+#include <cctype>
 
 using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
 
@@ -44,6 +45,22 @@ namespace WPEFramework
 {
     namespace Plugin
     {
+        std::string sanitizeShellArgument(const std::string& input)
+        {
+            // Remove shell metacharacters and dangerous characters
+            std::string result;
+            for (char c : input)
+            {
+                // Allow only alphanumeric, space, hyphen, underscore, dot, and colon
+                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':'))
+                {
+                    return {};
+                }
+                result += c;
+            }
+            return result;
+        }
+
         SERVICE_REGISTRATION(MiracastServiceImplementation, MIRACAST_SERVICE_API_VERSION_NUMBER_MAJOR, MIRACAST_SERVICE_API_VERSION_NUMBER_MINOR);
         
         MiracastServiceImplementation *MiracastServiceImplementation::_instance = nullptr;
@@ -839,7 +856,7 @@ namespace WPEFramework
                 memset(commandBuffer,0x00,sizeof(commandBuffer));
                 strncpy(commandBuffer,"curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.acceptClientConnection\", \"params\":{\"requestStatus\": \"Accept\"}}' http://127.0.0.1:9998/jsonrpc &",sizeof(commandBuffer));
                 commandBuffer[sizeof(commandBuffer) - 1] = '\0';
-                MIRACASTLOG_INFO("AutoConnecting [%s - %s] by [%s]",client_name.c_str(),client_mac.c_str(),commandBuffer);
+                MIRACASTLOG_INFO("AutoConnecting [%s - %s] by [%s]",sanitizeShellArgument(client_name).c_str(),sanitizeShellArgument(client_mac).c_str(),commandBuffer);
                 MiracastCommon::execute_SystemCommand(commandBuffer);
             }
             else
@@ -914,13 +931,22 @@ namespace WPEFramework
                 if (0 == access("/opt/miracast_autoconnect", F_OK))
                 {
                     char commandBuffer[768] = {0};
+                    std::string sanitizedDevName = sanitizeShellArgument(src_dev_name);
+                    std::string sanitizedDevIp = sanitizeShellArgument(src_dev_ip);
+                    std::string sanitizedDevMac = sanitizeShellArgument(src_dev_mac);
+                    std::string sanitizedSinkIp = sanitizeShellArgument(sink_dev_ip);
+                    if (sanitizedDevName.empty() || sanitizedDevIp.empty() || sanitizedDevMac.empty() || sanitizedSinkIp.empty())
+                    {
+                        MIRACASTLOG_ERROR("Rejected unsafe autoconnect parameters");
+                        return;
+                    }
                     snprintf( commandBuffer,
                             sizeof(commandBuffer),
                             "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",
-                            src_dev_ip.c_str(),
-                            src_dev_mac.c_str(),
-                            src_dev_name.c_str(),
-                            sink_dev_ip.c_str());
+                            sanitizedDevIp.c_str(),
+                            sanitizedDevMac.c_str(),
+                            sanitizedDevName.c_str(),
+                            sanitizedSinkIp.c_str());
                     MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
                     MiracastCommon::execute_SystemCommand(commandBuffer);
                 }
