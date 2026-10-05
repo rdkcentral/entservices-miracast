@@ -37,7 +37,7 @@ using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
 #define THUNDER_RPC_TIMEOUT 2000
 
 static PowerState m_powerState = WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY;
-static bool m_IsTransitionFromDeepSleep = false;
+static std::atomic<bool> m_IsTransitionFromDeepSleep{false};
 static bool m_IsWiFiConnectingState = false;
 
 namespace WPEFramework
@@ -53,6 +53,9 @@ namespace WPEFramework
         MiracastServiceImplementation::MiracastServiceImplementation()
         : _adminLock(),
         _pwrMgrNotification(*this),
+        _pwrMgrPreChangeNotification(*this),
+        _pwrMgrPreChangeClientId(0),
+        _registeredPreChangeClient(false),
         _systemServicesPlugin(nullptr),
         _systemServicesNotification(*this)
         {
@@ -215,6 +218,35 @@ namespace WPEFramework
                 }
             }
             MIRACASTLOG_TRACE("Exiting ...");
+        }
+
+        void MiracastServiceImplementation::resetWiFiPlugin(void)
+        {
+            if (m_WiFiPluginObj)
+            {
+                m_WiFiPluginObj->Unsubscribe(1000, _T("onWIFIStateChanged"));
+                delete m_WiFiPluginObj;
+                m_WiFiPluginObj = nullptr;
+            }
+        }
+
+        void MiracastServiceImplementation::connectWiFiPlugin(void)
+        {
+            getThunderPlugins();
+            if (m_WiFiPluginObj)
+            {
+                const uint32_t status = m_WiFiPluginObj->Subscribe<JsonObject>(1000, "onWIFIStateChanged", &MiracastServiceImplementation::onWIFIStateChangedHandler, this);
+                if (Core::ERROR_NONE != status)
+                {
+                    MIRACASTLOG_ERROR("Failed to subscribe to onWIFIStateChanged [%u]", status);
+                }
+            }
+        }
+
+        void MiracastServiceImplementation::reconnectWiFiPlugin(void)
+        {
+            resetWiFiPlugin();
+            connectWiFiPlugin();
         }
 
         bool MiracastServiceImplementation::updateSystemFriendlyName()
@@ -391,27 +423,23 @@ namespace WPEFramework
             {
 				MIRACASTLOG_INFO("MiracastServiceImplementation::Configure deinitialize");
                 MIRACASTLOG_TRACE("Call MiracastServiceImplementation deinitialize");
-            	if (m_FriendlyNameMonitorTimerID)
-            	{
-                	g_source_remove(m_FriendlyNameMonitorTimerID);
-                	m_FriendlyNameMonitorTimerID = 0;
-            	}
-            	remove_wifi_connection_state_timer();
-            	remove_miracast_connection_timer();
+                remove_all_polling_timers();
 
-            	if (_powerManagerPlugin)
-            	{
-                	_powerManagerPlugin->Unregister(_pwrMgrNotification.baseInterface<Exchange::IPowerManager::IModeChangedNotification>());
-                	_powerManagerPlugin.Reset();
-            	}
+                if (_powerManagerPlugin)
+                {
+                    if (_registeredPreChangeClient)
+                    {
+                        _powerManagerPlugin->RemovePowerModePreChangeClient(_pwrMgrPreChangeClientId);
+                        _registeredPreChangeClient = false;
+                        _pwrMgrPreChangeClientId = 0;
+                    }
+                    _powerManagerPlugin->Unregister(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
+                    _powerManagerPlugin->Unregister(_pwrMgrNotification.baseInterface<Exchange::IPowerManager::IModeChangedNotification>());
+                    _powerManagerPlugin.Reset();
+                }
             	_registeredEventHandlers = false;
 
-	   			if (m_WiFiPluginObj)
-            	{
-                	m_WiFiPluginObj->Unsubscribe(1000, _T("onWIFIStateChanged"));
-                	delete m_WiFiPluginObj;
-                	m_WiFiPluginObj = nullptr;
-            	}
+                resetWiFiPlugin();
 
 
                 if (_systemServicesPlugin)
@@ -473,20 +501,17 @@ namespace WPEFramework
                     if (nullptr != m_miracast_ctrler_obj)
                     {
                         InitializeSystemServices(service);
-                        getThunderPlugins();
-                        // subscribe for event
-                        if (nullptr != m_WiFiPluginObj)
-                        {
-                            m_WiFiPluginObj->Subscribe<JsonObject>(1000, "onWIFIStateChanged", &MiracastServiceImplementation::onWIFIStateChangedHandler, this);
-                        }
+                        connectWiFiPlugin();
 
                         if ( false == updateSystemFriendlyName())
                         {
+                            m_IsFriendlyNamePollingRequired = true;
                             m_FriendlyNameMonitorTimerID = g_timeout_add(2000, MiracastServiceImplementation::monitor_friendly_name_timercallback, this);
                             MIRACASTLOG_WARNING("Unable to get friendlyName, requires polling [%u]...",m_FriendlyNameMonitorTimerID);
                         }
                         else
                         {
+                            m_IsFriendlyNamePollingRequired = false;
                             MIRACASTLOG_INFO("friendlyName updated properly...");
                         }
                         m_isServiceInitialized = true;
@@ -542,11 +567,9 @@ namespace WPEFramework
                 if (!m_isServiceEnabled)
                 {
                     m_isServiceEnabled = true;
-                    if (m_IsTransitionFromDeepSleep)
+                    if (m_IsTransitionFromDeepSleep.load())
                     {
-                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK Enable Miracast discovery Async");
-                        m_miracast_ctrler_obj->restart_discoveryAsync();
-                        m_IsTransitionFromDeepSleep = false;
+                        MIRACASTLOG_INFO("Waiting for PowerManager resume before restarting discovery");
                     }
                     else
                     {
@@ -572,7 +595,7 @@ namespace WPEFramework
                     if (m_isServiceEnabled)
                     {
                         m_isServiceEnabled = false;
-                        if (!m_IsTransitionFromDeepSleep)
+                        if (!m_IsTransitionFromDeepSleep.load())
                         {
                             if ( MIRACAST_SERVICE_STATE_RESTARTING_SESSION == current_state )
                             {
@@ -774,7 +797,7 @@ namespace WPEFramework
                 lock_guard<recursive_mutex> lock(m_EventMutex);
                 isServiceEnabled = m_isServiceEnabled;
             }
-            if ( isServiceEnabled && restart_discovery_needed )
+            if (isServiceEnabled && restart_discovery_needed && !m_PowerTransitionShutdownRequested)
             {
                 // It will restart the discovering
                 m_miracast_ctrler_obj->restart_session_discovery(clientMac);
@@ -991,6 +1014,83 @@ namespace WPEFramework
                 _registeredEventHandlers = true;
                 _powerManagerPlugin->Register(_pwrMgrNotification.baseInterface<Exchange::IPowerManager::IModeChangedNotification>());
                 MIRACASTLOG_INFO("onPowerModeChanged event registered ...");
+
+                _powerManagerPlugin->Register(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
+                MIRACASTLOG_INFO("onPowerModePreChange event registered ...");
+
+                if (Core::ERROR_NONE == _powerManagerPlugin->AddPowerModePreChangeClient(_T("MiracastService"), _pwrMgrPreChangeClientId))
+                {
+                    _registeredPreChangeClient = true;
+                    MIRACASTLOG_INFO("Engaged in PowerMode pre-change operation, clientId[%u]", _pwrMgrPreChangeClientId);
+                }
+                else
+                {
+                    _pwrMgrPreChangeClientId = 0;
+                    MIRACASTLOG_ERROR("Failed to engage in PowerMode pre-change operation");
+                }
+            }
+        }
+
+        void MiracastServiceImplementation::onPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter)
+        {
+            bool shutdownComplete = true;
+            MIRACASTLOG_INFO("PowerMode pre-change [%s] -> [%s] transactionId[%d] stateChangeAfter[%d]",
+                                getPowerStateString(currentState).c_str(),
+                                getPowerStateString(newState).c_str(),
+                                transactionId, stateChangeAfter);
+
+            if (nullptr != _instance)
+            {
+                if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState) ||
+                    (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == newState))
+                {
+                    lock_guard<mutex> lck(_instance->m_DiscoveryStateMutex);
+                    _instance->m_PowerTransitionShutdownRequested = true;
+                    _instance->remove_all_polling_timers();
+
+                    if (_powerManagerPlugin && _registeredPreChangeClient &&
+                        (Core::ERROR_NONE != _powerManagerPlugin->DelayPowerModeChangeBy(_pwrMgrPreChangeClientId, transactionId, 15)))
+                    {
+                        MIRACASTLOG_WARNING("Unable to extend PowerManager pre-change window");
+                    }
+
+                    const auto shutdownDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+                    PluginHost::IShell* service = _instance->m_CurrentService;
+                    if (nullptr != service)
+                    {
+                        Exchange::IMiracastPlayer* player = service->QueryInterfaceByCallsign<Exchange::IMiracastPlayer>(_T("org.rdk.MiracastPlayer"));
+                        if (nullptr != player)
+                        {
+                            Exchange::IMiracastPlayer::Result playerResult;
+                            Core::hresult playerStatus = player->StopRequest(_T(""), _T(""), STOP_REASON_APP_REQ_FOR_EXIT, playerResult);
+                            if ((Core::ERROR_NONE != playerStatus) || !playerResult.success)
+                            {
+                                MIRACASTLOG_ERROR("Player did not complete teardown before power transition");
+                                shutdownComplete = false;
+                            }
+                            player->Release();
+                        }
+                    }
+
+                    if (_instance->m_miracast_ctrler_obj)
+                    {
+                        const auto remainingTime = std::chrono::duration_cast<std::chrono::milliseconds>(shutdownDeadline - std::chrono::steady_clock::now());
+                        if (!_instance->m_miracast_ctrler_obj->stop_for_power_transition(remainingTime))
+                        {
+                            MIRACASTLOG_ERROR("Controller did not complete P2P teardown before power transition");
+                            shutdownComplete = false;
+                        }
+                    }
+                }
+            }
+
+            if (_powerManagerPlugin && _registeredPreChangeClient && shutdownComplete)
+            {
+                _powerManagerPlugin->PowerModePreChangeComplete(_pwrMgrPreChangeClientId, transactionId);
+            }
+            else if (!shutdownComplete)
+            {
+                MIRACASTLOG_ERROR("PowerManager pre-change remains unacknowledged because teardown did not complete");
             }
         }
 
@@ -1057,12 +1157,32 @@ namespace WPEFramework
                                 getPowerStateString(new_pwr_state).c_str());
             if (WPEFramework::Exchange::IPowerManager::POWER_STATE_ON == pwrState)
             {
+                _instance->m_PowerTransitionShutdownRequested = false;
+                const bool resumedFromDeepSleep = m_IsTransitionFromDeepSleep.exchange(false);
+                if (resumedFromDeepSleep)
+                {
+                    _instance->reconnectSystemServicesPlugin();
+                    _instance->reconnectWiFiPlugin();
+                    if (_instance->updateSystemFriendlyName())
+                    {
+                        _instance->m_IsFriendlyNamePollingRequired = false;
+                        _instance->remove_friendly_name_timer();
+                    }
+                    else
+                    {
+                        _instance->m_IsFriendlyNamePollingRequired = true;
+                        if (0 == _instance->m_FriendlyNameMonitorTimerID)
+                        {
+                            _instance->m_FriendlyNameMonitorTimerID = g_timeout_add(2000, MiracastServiceImplementation::monitor_friendly_name_timercallback, _instance);
+                            MIRACASTLOG_INFO("Resuming friendlyName polling [%u]", _instance->m_FriendlyNameMonitorTimerID);
+                        }
+                    }
+                }
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
-                if ((m_IsTransitionFromDeepSleep) && (_instance->m_isServiceEnabled))
+                if (resumedFromDeepSleep && _instance->m_isServiceEnabled)
                 {
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Enable Miracast discovery from PwrMgr [%d]",_instance->m_isServiceEnabled);
                     _instance->m_miracast_ctrler_obj->restart_discoveryAsync();
-                    m_IsTransitionFromDeepSleep = false;
                 }
                 else if (!_instance->m_isServiceEnabled)
                 {
@@ -1074,16 +1194,23 @@ namespace WPEFramework
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
                 if ( _instance->m_isServiceEnabled )
                 {
-                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
-                    _instance->setEnableInternal(false);
+                    if (_instance->m_PowerTransitionShutdownRequested)
+                    {
+                        MIRACASTLOG_INFO("PowerManager pre-change shutdown already completed");
+                    }
+                    else
+                    {
+                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
+                        _instance->setEnableInternal(false);
+                    }
                 }
                 else
                 {
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to disable it",_instance->m_isServiceEnabled);
                 }
-                _instance->remove_wifi_connection_state_timer();
-                _instance->remove_miracast_connection_timer();
-                m_IsTransitionFromDeepSleep = true;
+                _instance->remove_all_polling_timers();
+                m_IsTransitionFromDeepSleep.store(true);
+                _instance->m_PowerTransitionShutdownRequested = false;
             }
             MIRACASTLOG_TRACE("Exiting ...");
         }
@@ -1104,6 +1231,21 @@ namespace WPEFramework
                     MIRACASTLOG_ERROR("Failed to get SystemServices instance");
                 }
             }
+        }
+
+        void MiracastServiceImplementation::reconnectSystemServicesPlugin(void)
+        {
+            if (_systemServicesPlugin)
+            {
+                if (_registeredSystemEventHandlers)
+                {
+                    _systemServicesPlugin->Unregister(&_systemServicesNotification);
+                    _registeredSystemEventHandlers = false;
+                }
+                _systemServicesPlugin->Release();
+                _systemServicesPlugin = nullptr;
+            }
+            InitializeSystemServices(m_CurrentService);
         }
 
         void MiracastServiceImplementation::registerSystemEventHandlers()
@@ -1224,6 +1366,8 @@ namespace WPEFramework
             if ( true == self->updateSystemFriendlyName() )
             {
                 MIRACASTLOG_INFO("friendlyName updated properly, No polling required...");
+                self->m_IsFriendlyNamePollingRequired = false;
+                self->m_FriendlyNameMonitorTimerID = 0;
                 timer_retry_state = G_SOURCE_REMOVE;
             }
             else
@@ -1275,6 +1419,18 @@ namespace WPEFramework
             return G_SOURCE_REMOVE;
         }
 
+        void MiracastServiceImplementation::remove_friendly_name_timer(void)
+        {
+            MIRACASTLOG_TRACE("Entering ...");
+            if (m_FriendlyNameMonitorTimerID)
+            {
+                MIRACASTLOG_INFO("Removing FriendlyName Monitor Timer");
+                g_source_remove(m_FriendlyNameMonitorTimerID);
+                m_FriendlyNameMonitorTimerID = 0;
+            }
+            MIRACASTLOG_TRACE("Exiting ...");
+        }
+
         void MiracastServiceImplementation::remove_wifi_connection_state_timer(void)
         {
             MIRACASTLOG_TRACE("Entering ...");
@@ -1298,6 +1454,13 @@ namespace WPEFramework
                 m_MiracastConnectionMonitorTimerID = 0;
             }
             MIRACASTLOG_TRACE("Exiting ...");
+        }
+
+        void MiracastServiceImplementation::remove_all_polling_timers(void)
+        {
+            remove_friendly_name_timer();
+            remove_wifi_connection_state_timer();
+            remove_miracast_connection_timer();
         }
         /*  Internal Timer Callback and methods End */
         /* ------------------------------------------------------------------------------------------------------- */

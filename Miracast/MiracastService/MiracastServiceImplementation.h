@@ -23,6 +23,7 @@
 
 #include <interfaces/Ids.h>
 #include <interfaces/IMiracastService.h>
+#include <interfaces/IMiracastPlayer.h>
 #include <interfaces/IPowerManager.h>
 #include<interfaces/IConfiguration.h>
 #include <interfaces/ISystemServices.h>
@@ -32,6 +33,7 @@
 
 #include <com/com.h>
 #include <core/core.h>
+#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -186,6 +188,40 @@ namespace WPEFramework
                         MiracastServiceImplementation& _parent;
                 }; // class PowerManagerNotification
 
+                class PowerManagerPreChangeNotification : public Exchange::IPowerManager::IModePreChangeNotification
+                {
+                    private:
+                        PowerManagerPreChangeNotification(const PowerManagerPreChangeNotification&) = delete;
+                        PowerManagerPreChangeNotification& operator=(const PowerManagerPreChangeNotification&) = delete;
+
+                    public:
+                        explicit PowerManagerPreChangeNotification(MiracastServiceImplementation& parent)
+                            : _parent(parent)
+                        {
+                        }
+                        ~PowerManagerPreChangeNotification() override = default;
+
+                    public:
+                        void OnPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter) override
+                        {
+                            _parent.onPowerModePreChange(currentState, newState, transactionId, stateChangeAfter);
+                        }
+
+                        template <typename T>
+                        T* baseInterface()
+                        {
+                            static_assert(std::is_base_of<T, PowerManagerPreChangeNotification>(), "base type mismatch");
+                            return static_cast<T*>(this);
+                        }
+
+                        BEGIN_INTERFACE_MAP(PowerManagerPreChangeNotification)
+                        INTERFACE_ENTRY(Exchange::IPowerManager::IModePreChangeNotification)
+                        END_INTERFACE_MAP
+
+                    private:
+                        MiracastServiceImplementation& _parent;
+                }; // class PowerManagerPreChangeNotification
+
                 class SystemServicesNotification : public Exchange::ISystemServices::INotification
                 {
                     private:
@@ -225,11 +261,13 @@ namespace WPEFramework
                 std::list<Exchange::IMiracastService::INotification *> _miracastServiceNotification; // List of registered notifications
                 PluginHost::IShell *m_CurrentService;
                 guint m_FriendlyNameMonitorTimerID{0};
+                bool m_IsFriendlyNamePollingRequired{false};
                 guint m_WiFiConnectedStateMonitorTimerID{0};
                 guint m_MiracastConnectionMonitorTimerID{0};
                 eMIRA_SERVICE_STATES m_eService_state;
                 bool m_isServiceInitialized{false};
                 bool m_isServiceEnabled{false};
+                std::atomic<bool> m_PowerTransitionShutdownRequested{false};
 
                 void dispatchEvent(Event, const JsonObject &params);
                 void Dispatch(Event event, const JsonObject &params);
@@ -238,6 +276,9 @@ namespace WPEFramework
                 void changeServiceState(eMIRA_SERVICE_STATES eService_state);
                 bool envGetValue(const char *key, std::string &value);
                 void getThunderPlugins(void);
+                void resetWiFiPlugin(void);
+                void connectWiFiPlugin(void);
+                void reconnectWiFiPlugin(void);
                 bool updateSystemFriendlyName();
                 void setEnableInternal(bool isEnabled);
 
@@ -255,17 +296,23 @@ namespace WPEFramework
                 void registerSystemEventHandlers();
                 void unregisterSystemEventHandlers();
                 void InitializeSystemServices(PluginHost::IShell* service);
+                void reconnectSystemServicesPlugin(void);
 
                 static gboolean monitor_friendly_name_timercallback(gpointer userdata);
                 static gboolean monitor_wifi_connection_state_timercallback(gpointer userdata);
                 static gboolean monitor_miracast_connection_timercallback(gpointer userdata);
+                void remove_friendly_name_timer(void);
                 void remove_wifi_connection_state_timer(void);
                 void remove_miracast_connection_timer(void);
+                void remove_all_polling_timers(void);
 
             public:
                 static MiracastServiceImplementation *_instance;
                 static PowerManagerInterfaceRef _powerManagerPlugin;
                 Core::Sink<PowerManagerNotification> _pwrMgrNotification;
+                Core::Sink<PowerManagerPreChangeNotification> _pwrMgrPreChangeNotification;
+                uint32_t _pwrMgrPreChangeClientId;
+                bool _registeredPreChangeClient;
                 bool _registeredEventHandlers;
 
                 Exchange::ISystemServices* _systemServicesPlugin;
@@ -273,6 +320,7 @@ namespace WPEFramework
                 bool _registeredSystemEventHandlers;
 
                 void onPowerModeChanged(const PowerState currentState, const PowerState newState);
+                void onPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter);
 
                 friend class Job;
         }; // class MiracastServiceImplementation

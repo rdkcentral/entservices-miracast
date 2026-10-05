@@ -318,11 +318,22 @@ namespace WPEFramework
                 case STOP_REASON_APP_REQ_FOR_EXIT:
                 case STOP_REASON_APP_REQ_FOR_NEW_CONNECTION:
                 {
-                    rtsp_hldr_msgq_data.stop_reason_code = stopReasonCode;
-
-                    rtsp_hldr_msgq_data.state = RTSP_TEARDOWN_FROM_SINK2SRC;
-                    m_miracast_rtsp_obj->send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
-                    isSuccessOrFailure = true;
+                    if (STOP_REASON_APP_REQ_FOR_EXIT == stopReasonCode)
+                    {
+                        isSuccessOrFailure = (nullptr != m_miracast_rtsp_obj) &&
+                            m_miracast_rtsp_obj->stopAndWait(stopReasonCode, std::chrono::seconds(15));
+                    }
+                    else if (nullptr != m_miracast_rtsp_obj)
+                    {
+                        rtsp_hldr_msgq_data.stop_reason_code = stopReasonCode;
+                        rtsp_hldr_msgq_data.state = RTSP_TEARDOWN_FROM_SINK2SRC;
+                        m_miracast_rtsp_obj->send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
+                        isSuccessOrFailure = true;
+                    }
+                    else
+                    {
+                        isSuccessOrFailure = false;
+                    }
                 }
                 break;
                 default:

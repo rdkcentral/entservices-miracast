@@ -64,6 +64,13 @@ enum MiracastError
 	MIRACAST_RTSP_INIT_FAILED
 };
 
+typedef enum miracast_player_stop_reason_code_e
+{
+    STOP_REASON_APP_REQ_FOR_EXIT = 300,
+    STOP_REASON_APP_REQ_FOR_NEW_CONNECTION = 301
+}
+MiracastPlayerStopReasonCode;
+
 typedef enum controller_framework_states_e
 {
     CONTROLLER_START_DISCOVERING = 0x00000001,
@@ -95,6 +102,7 @@ typedef enum controller_framework_states_e
     CONTROLLER_SELF_ABORT = 0x0000001B,
     CONTROLLER_RESTART_DISCOVERING = 0x0000001C,
     CONTROLLER_INVALID_STATE = 0x0000001D,
+    CONTROLLER_STOP_FOR_POWER_TRANSITION = 0x0000001E,
     RTSP_M1_REQUEST_RECEIVED = 0x000FF0000,
     RTSP_M2_REQUEST_ACK = 0x000FF0001,
     RTSP_M3_REQUEST_RECEIVED = 0x000FF0002,
