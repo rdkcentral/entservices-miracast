@@ -860,15 +860,22 @@ bool MiracastRTSPMsg::stopAndWait(MiracastPlayerStopReasonCode reason, std::chro
 
     if (!m_stopInProgress)
     {
+        m_stopInProgress = true;
         RTSP_HLDR_MSGQ_STRUCT message = {};
         message.state = RTSP_TEARDOWN_FROM_SINK2SRC;
         message.stop_reason_code = reason;
         send_msgto_rtsp_msg_hdler_thread(message);
     }
 
-    return m_stateCondition.wait_for(lock, timeout, [this]() {
+    const bool completed = m_stateCondition.wait_for(lock, timeout, [this]() {
         return (m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress;
     });
+    if (!completed)
+    {
+        lock.unlock();
+        MIRACASTLOG_WARNING("RTSP teardown wait timed out; keeping the queued stop active until handler completion");
+    }
+    return completed;
 }
 
 void MiracastRTSPMsg::store_srcsink_info( std::string client_name,
@@ -2183,7 +2190,8 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
             }
             else if ( RTSP_MSG_TEARDOWN_REQUEST == status_code )
             {
-                if ( STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code )
+                if ((STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code) ||
+                    (STOP_REASON_POWER_TRANSITION == rtsp_message_data.stop_reason_code))
                 {
                     reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-EXIT APP REQUESTED TO STOP ON EXIT ####");
@@ -2323,7 +2331,8 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
 
                             if (RTSP_TEARDOWN_FROM_SINK2SRC == rtsp_message_data.state)
                             {
-                                if ( STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code )
+                                if ((STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code) ||
+                                    (STOP_REASON_POWER_TRANSITION == rtsp_message_data.stop_reason_code))
                                 {
                                     reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
                                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-EXIT APP REQUESTED TO STOP ON EXIT ####");

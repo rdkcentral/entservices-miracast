@@ -67,9 +67,16 @@ enum MiracastError
 typedef enum miracast_player_stop_reason_code_e
 {
     STOP_REASON_APP_REQ_FOR_EXIT = 300,
-    STOP_REASON_APP_REQ_FOR_NEW_CONNECTION = 301
+    STOP_REASON_APP_REQ_FOR_NEW_CONNECTION = 301,
+    STOP_REASON_POWER_TRANSITION = 302
 }
 MiracastPlayerStopReasonCode;
+
+enum
+{
+    MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS = 15,
+    MIRACAST_POWER_TRANSITION_PLAYER_TIMEOUT_SECONDS = 10
+};
 
 typedef enum controller_framework_states_e
 {

@@ -317,11 +317,16 @@ namespace WPEFramework
             {
                 case STOP_REASON_APP_REQ_FOR_EXIT:
                 case STOP_REASON_APP_REQ_FOR_NEW_CONNECTION:
+                case STOP_REASON_POWER_TRANSITION:
                 {
-                    if (STOP_REASON_APP_REQ_FOR_EXIT == stopReasonCode)
+                    if ((STOP_REASON_APP_REQ_FOR_EXIT == stopReasonCode) ||
+                        (STOP_REASON_POWER_TRANSITION == stopReasonCode))
                     {
+                        const auto timeout = (STOP_REASON_POWER_TRANSITION == stopReasonCode)
+                            ? std::chrono::seconds(MIRACAST_POWER_TRANSITION_PLAYER_TIMEOUT_SECONDS)
+                            : std::chrono::seconds(MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS);
                         isSuccessOrFailure = (nullptr != m_miracast_rtsp_obj) &&
-                            m_miracast_rtsp_obj->stopAndWait(stopReasonCode, std::chrono::seconds(15));
+                            m_miracast_rtsp_obj->stopAndWait(stopReasonCode, timeout);
                     }
                     else if (nullptr != m_miracast_rtsp_obj)
                     {

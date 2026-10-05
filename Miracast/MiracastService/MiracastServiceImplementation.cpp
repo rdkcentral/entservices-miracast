@@ -37,7 +37,7 @@ using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
 #define THUNDER_RPC_TIMEOUT 2000
 
 static PowerState m_powerState = WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY;
-static std::atomic<bool> m_IsTransitionFromDeepSleep{false};
+static std::atomic<bool> m_IsTransitionFromLowPower{false};
 static bool m_IsWiFiConnectingState = false;
 
 namespace WPEFramework
@@ -567,7 +567,7 @@ namespace WPEFramework
                 if (!m_isServiceEnabled)
                 {
                     m_isServiceEnabled = true;
-                    if (m_IsTransitionFromDeepSleep.load())
+                    if (m_IsTransitionFromLowPower.load())
                     {
                         MIRACASTLOG_INFO("Waiting for PowerManager resume before restarting discovery");
                     }
@@ -595,7 +595,7 @@ namespace WPEFramework
                     if (m_isServiceEnabled)
                     {
                         m_isServiceEnabled = false;
-                        if (!m_IsTransitionFromDeepSleep.load())
+                        if (!m_IsTransitionFromLowPower.load())
                         {
                             if ( MIRACAST_SERVICE_STATE_RESTARTING_SESSION == current_state )
                             {
@@ -1049,12 +1049,12 @@ namespace WPEFramework
                     _instance->remove_all_polling_timers();
 
                     if (_powerManagerPlugin && _registeredPreChangeClient &&
-                        (Core::ERROR_NONE != _powerManagerPlugin->DelayPowerModeChangeBy(_pwrMgrPreChangeClientId, transactionId, 15)))
+                        (Core::ERROR_NONE != _powerManagerPlugin->DelayPowerModeChangeBy(_pwrMgrPreChangeClientId, transactionId, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS)))
                     {
                         MIRACASTLOG_WARNING("Unable to extend PowerManager pre-change window");
                     }
 
-                    const auto shutdownDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+                    const auto shutdownDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS);
                     PluginHost::IShell* service = _instance->m_CurrentService;
                     if (nullptr != service)
                     {
@@ -1062,7 +1062,7 @@ namespace WPEFramework
                         if (nullptr != player)
                         {
                             Exchange::IMiracastPlayer::Result playerResult;
-                            Core::hresult playerStatus = player->StopRequest(_T(""), _T(""), STOP_REASON_APP_REQ_FOR_EXIT, playerResult);
+                            Core::hresult playerStatus = player->StopRequest(_T(""), _T(""), STOP_REASON_POWER_TRANSITION, playerResult);
                             if ((Core::ERROR_NONE != playerStatus) || !playerResult.success)
                             {
                                 MIRACASTLOG_ERROR("Player did not complete teardown before power transition");
@@ -1158,8 +1158,8 @@ namespace WPEFramework
             if (WPEFramework::Exchange::IPowerManager::POWER_STATE_ON == pwrState)
             {
                 _instance->m_PowerTransitionShutdownRequested = false;
-                const bool resumedFromDeepSleep = m_IsTransitionFromDeepSleep.exchange(false);
-                if (resumedFromDeepSleep)
+                const bool resumedFromLowPower = m_IsTransitionFromLowPower.exchange(false);
+                if (resumedFromLowPower)
                 {
                     _instance->reconnectSystemServicesPlugin();
                     _instance->reconnectWiFiPlugin();
@@ -1179,7 +1179,7 @@ namespace WPEFramework
                     }
                 }
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
-                if (resumedFromDeepSleep && _instance->m_isServiceEnabled)
+                if (resumedFromLowPower && _instance->m_isServiceEnabled)
                 {
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Enable Miracast discovery from PwrMgr [%d]",_instance->m_isServiceEnabled);
                     _instance->m_miracast_ctrler_obj->restart_discoveryAsync();
@@ -1189,7 +1189,8 @@ namespace WPEFramework
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to enable it",_instance->m_isServiceEnabled);
                 }
             }
-            else if (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState)
+            else if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState) ||
+                     (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == pwrState))
             {
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
                 if ( _instance->m_isServiceEnabled )
@@ -1209,7 +1210,7 @@ namespace WPEFramework
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to disable it",_instance->m_isServiceEnabled);
                 }
                 _instance->remove_all_polling_timers();
-                m_IsTransitionFromDeepSleep.store(true);
+                m_IsTransitionFromLowPower.store(true);
                 _instance->m_PowerTransitionShutdownRequested = false;
             }
             MIRACASTLOG_TRACE("Exiting ...");
