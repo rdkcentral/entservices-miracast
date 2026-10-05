@@ -297,8 +297,8 @@ namespace WPEFramework
 
                 rtsp_hldr_msgq_data.videorect = m_video_sink_rect;
 
-                m_miracast_rtsp_obj->send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
-                isSuccessOrFailure = true;
+                isSuccessOrFailure = (nullptr != m_miracast_rtsp_obj) &&
+                    m_miracast_rtsp_obj->queueStartRequest(rtsp_hldr_msgq_data);
             }
             result.success = isSuccessOrFailure;
             MIRACASTLOG_TRACE("Exiting ...");

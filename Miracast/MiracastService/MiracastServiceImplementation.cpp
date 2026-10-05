@@ -56,6 +56,7 @@ namespace WPEFramework
         _pwrMgrPreChangeNotification(*this),
         _pwrMgrPreChangeClientId(0),
         _registeredPreChangeClient(false),
+        _registeredPreChangeNotification(false),
         _systemServicesPlugin(nullptr),
         _systemServicesNotification(*this)
         {
@@ -433,7 +434,11 @@ namespace WPEFramework
                         _registeredPreChangeClient = false;
                         _pwrMgrPreChangeClientId = 0;
                     }
-                    _powerManagerPlugin->Unregister(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
+                    if (_registeredPreChangeNotification)
+                    {
+                        _powerManagerPlugin->Unregister(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
+                        _registeredPreChangeNotification = false;
+                    }
                     _powerManagerPlugin->Unregister(_pwrMgrNotification.baseInterface<Exchange::IPowerManager::IModeChangedNotification>());
                     _powerManagerPlugin.Reset();
                 }
@@ -1015,18 +1020,29 @@ namespace WPEFramework
                 _powerManagerPlugin->Register(_pwrMgrNotification.baseInterface<Exchange::IPowerManager::IModeChangedNotification>());
                 MIRACASTLOG_INFO("onPowerModeChanged event registered ...");
 
-                _powerManagerPlugin->Register(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
-                MIRACASTLOG_INFO("onPowerModePreChange event registered ...");
-
-                if (Core::ERROR_NONE == _powerManagerPlugin->AddPowerModePreChangeClient(_T("MiracastService"), _pwrMgrPreChangeClientId))
+                const Core::hresult preChangeRegistrationStatus =
+                    _powerManagerPlugin->Register(_pwrMgrPreChangeNotification.baseInterface<Exchange::IPowerManager::IModePreChangeNotification>());
+                if (Core::ERROR_NONE == preChangeRegistrationStatus)
                 {
-                    _registeredPreChangeClient = true;
-                    MIRACASTLOG_INFO("Engaged in PowerMode pre-change operation, clientId[%u]", _pwrMgrPreChangeClientId);
+                    _registeredPreChangeNotification = true;
+                    MIRACASTLOG_INFO("onPowerModePreChange event registered ...");
+                    if (Core::ERROR_NONE == _powerManagerPlugin->AddPowerModePreChangeClient(_T("MiracastService"), _pwrMgrPreChangeClientId))
+                    {
+                        _registeredPreChangeClient = true;
+                        MIRACASTLOG_INFO("Engaged in PowerMode pre-change operation, clientId[%u]", _pwrMgrPreChangeClientId);
+                    }
+                    else
+                    {
+                        _pwrMgrPreChangeClientId = 0;
+                        MIRACASTLOG_ERROR("Failed to engage in PowerMode pre-change operation");
+                    }
                 }
                 else
                 {
+                    _registeredPreChangeNotification = false;
+                    _registeredPreChangeClient = false;
                     _pwrMgrPreChangeClientId = 0;
-                    MIRACASTLOG_ERROR("Failed to engage in PowerMode pre-change operation");
+                    MIRACASTLOG_ERROR("Failed to register onPowerModePreChange event [%u]", preChangeRegistrationStatus);
                 }
             }
         }

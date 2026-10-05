@@ -812,12 +812,17 @@ void MiracastRTSPMsg::set_state( MiracastPlayerState state , bool send_notificat
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
             m_current_state = state;
+            m_startPending = false;
         }
     }
     else
     {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_current_state = state;
+        if (WPEFramework::Exchange::IMiracastPlayer::STATE_INITIATED == state)
+        {
+            m_startPending = false;
+        }
     }
 
     if (( true == send_notification ) && ( nullptr != m_player_notify_handler ))
@@ -854,8 +859,8 @@ bool MiracastRTSPMsg::stopAndWait(MiracastPlayerStopReasonCode reason, std::chro
     bool completed = false;
     {
         std::unique_lock<std::mutex> lock(m_stateMutex);
-        if ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE) ||
-            ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress))
+        if (((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE) && !m_startPending) ||
+            ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress && !m_startPending))
         {
             return true;
         }
@@ -2434,6 +2439,19 @@ void MiracastRTSPMsg::send_msgto_rtsp_msg_hdler_thread(RTSP_HLDR_MSGQ_STRUCT rts
         m_rtsp_msg_handler_thread->send_message(&rtsp_hldr_msgq_data, RTSP_HANDLER_MSGQ_SIZE);
     }
     MIRACASTLOG_TRACE("Exiting...");
+}
+
+bool MiracastRTSPMsg::queueStartRequest(RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if ((nullptr == m_rtsp_msg_handler_thread) || m_stopInProgress)
+    {
+        return false;
+    }
+
+    m_startPending = true;
+    send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
+    return true;
 }
 
 void RTSPMsgHandlerCallback(void *args)

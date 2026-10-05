@@ -313,6 +313,7 @@ namespace WPEFramework
                 Core::Sink<PowerManagerPreChangeNotification> _pwrMgrPreChangeNotification;
                 uint32_t _pwrMgrPreChangeClientId;
                 bool _registeredPreChangeClient;
+                bool _registeredPreChangeNotification;
                 bool _registeredEventHandlers;
 
                 Exchange::ISystemServices* _systemServicesPlugin;

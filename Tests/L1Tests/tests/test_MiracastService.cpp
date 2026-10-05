@@ -260,7 +260,7 @@ protected:
 	Exchange::IPowerManager::IModePreChangeNotification* preChangeNotification{nullptr};
 	uint32_t powerManagerClientId{0};
 
-	void configurePowerManagerMocks()
+	void configurePowerManagerMocks(bool preChangeRegistrationSucceeds = true)
 	{
 		ON_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.PowerManager")))
 			.WillByDefault(::testing::Invoke([](const uint32_t, const string&) -> void* {
@@ -288,29 +288,45 @@ protected:
 		EXPECT_CALL(PowerManagerMock::Mock(), Register(::testing::Matcher<Exchange::IPowerManager::IModeChangedNotification*>(::testing::_)))
 			.WillOnce(::testing::Return(Core::ERROR_NONE));
 		EXPECT_CALL(PowerManagerMock::Mock(), Register(::testing::Matcher<Exchange::IPowerManager::IModePreChangeNotification*>(::testing::_)))
-			.WillOnce(::testing::Invoke([this](Exchange::IPowerManager::IModePreChangeNotification* notification) {
-				preChangeNotification = notification;
-				return Core::ERROR_NONE;
+			.WillOnce(::testing::Invoke([this, preChangeRegistrationSucceeds](Exchange::IPowerManager::IModePreChangeNotification* notification) {
+				if (preChangeRegistrationSucceeds)
+				{
+					preChangeNotification = notification;
+					return Core::ERROR_NONE;
+				}
+				return Core::ERROR_GENERAL;
 			}));
-		EXPECT_CALL(PowerManagerMock::Mock(), AddPowerModePreChangeClient(::testing::_, ::testing::_))
-			.WillOnce(::testing::DoAll(
-				::testing::SetArgReferee<1>(77u),
-				::testing::Return(Core::ERROR_NONE)));
-		EXPECT_CALL(PowerManagerMock::Mock(), Unregister(::testing::Matcher<const Exchange::IPowerManager::IModePreChangeNotification*>(::testing::_)))
-			.WillOnce(::testing::Return(Core::ERROR_NONE));
+		if (preChangeRegistrationSucceeds)
+		{
+			EXPECT_CALL(PowerManagerMock::Mock(), AddPowerModePreChangeClient(::testing::_, ::testing::_))
+				.WillOnce(::testing::DoAll(
+					::testing::SetArgReferee<1>(77u),
+					::testing::Return(Core::ERROR_NONE)));
+			EXPECT_CALL(PowerManagerMock::Mock(), Unregister(::testing::Matcher<const Exchange::IPowerManager::IModePreChangeNotification*>(::testing::_)))
+				.WillOnce(::testing::Return(Core::ERROR_NONE));
+			EXPECT_CALL(PowerManagerMock::Mock(), RemovePowerModePreChangeClient(77u))
+				.WillOnce(::testing::Return(Core::ERROR_NONE));
+		}
+		else
+		{
+			EXPECT_CALL(PowerManagerMock::Mock(), AddPowerModePreChangeClient(::testing::_, ::testing::_)).Times(0);
+			EXPECT_CALL(PowerManagerMock::Mock(), Unregister(::testing::Matcher<const Exchange::IPowerManager::IModePreChangeNotification*>(::testing::_))).Times(0);
+			EXPECT_CALL(PowerManagerMock::Mock(), RemovePowerModePreChangeClient(::testing::_)).Times(0);
+		}
 		EXPECT_CALL(PowerManagerMock::Mock(), Unregister(::testing::Matcher<const Exchange::IPowerManager::IModeChangedNotification*>(::testing::_)))
-			.WillOnce(::testing::Return(Core::ERROR_NONE));
-		EXPECT_CALL(PowerManagerMock::Mock(), RemovePowerModePreChangeClient(77u))
 			.WillOnce(::testing::Return(Core::ERROR_NONE));
 		powerManagerClientId = 77;
 	}
 
-	void initializePowerTest()
+	void initializePowerTest(bool expectPreChangeNotification = true)
 	{
 		createFile("/etc/device.properties", "WIFI_P2P_CTRL_INTERFACE=p2p0");
 		createFile("/var/run/wpa_supplicant/p2p0", "p2p0");
 		EXPECT_EQ(string(""), plugin->Initialize(&service));
-		ASSERT_NE(nullptr, preChangeNotification);
+		if (expectPreChangeNotification)
+		{
+			ASSERT_NE(nullptr, preChangeNotification);
+		}
 	}
 
 	void deinitializePowerTest()
@@ -2179,6 +2195,15 @@ TEST_F(MiracastServiceEventTest, powerPreChangeRegistersAndCompletes)
 		Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 101, 15);
 	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = controller;
 
+	deinitializePowerTest();
+}
+
+TEST_F(MiracastServiceEventTest, powerPreChangeRegistrationFailureDoesNotAddClient)
+{
+	configurePowerManagerMocks(false);
+	initializePowerTest(false);
+	EXPECT_FALSE(Plugin::MiracastServiceImplementation::_instance->_registeredPreChangeClient);
+	EXPECT_FALSE(Plugin::MiracastServiceImplementation::_instance->_registeredPreChangeNotification);
 	deinitializePowerTest();
 }
 
