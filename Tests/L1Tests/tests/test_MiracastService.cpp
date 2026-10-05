@@ -144,6 +144,8 @@ static struct wpa_ctrl global_wpa_ctrl_handle;
 class MiracastPlayerInterfaceMock : public Exchange::IMiracastPlayer
 {
 public:
+	MOCK_METHOD(uint32_t, AddRef, (), (const, override));
+	MOCK_METHOD(uint32_t, Release, (), (const, override));
 	MOCK_METHOD(Core::hresult, Register, (Exchange::IMiracastPlayer::INotification*), (override));
 	MOCK_METHOD(Core::hresult, Unregister, (Exchange::IMiracastPlayer::INotification*), (override));
 	MOCK_METHOD(Core::hresult, PlayRequest, (const DeviceParameters&, const VideoRectangle, Result&), (override));
