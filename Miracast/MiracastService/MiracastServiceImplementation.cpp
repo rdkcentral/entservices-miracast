@@ -1097,6 +1097,7 @@ namespace WPEFramework
                             shutdownComplete = false;
                         }
                     }
+                    _instance->m_PowerTransitionShutdownRequested = shutdownComplete;
                 }
             }
 

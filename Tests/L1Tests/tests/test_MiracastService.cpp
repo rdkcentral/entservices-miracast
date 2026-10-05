@@ -2227,6 +2227,7 @@ TEST_F(MiracastServiceEventTest, powerPreChangePlayerTimeoutDoesNotComplete)
 	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = nullptr;
 	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_ON,
 		Exchange::IPowerManager::POWER_STATE_OFF, 102, 15);
+	EXPECT_FALSE(Plugin::MiracastServiceImplementation::_instance->m_PowerTransitionShutdownRequested);
 	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = controller;
 
 	deinitializePowerTest();
@@ -2235,6 +2236,9 @@ TEST_F(MiracastServiceEventTest, powerPreChangePlayerTimeoutDoesNotComplete)
 TEST_F(MiracastServiceEventTest, powerPreChangeRecoversFromDeepSleepAndOff)
 {
 	configurePowerManagerMocks();
+	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.MiracastPlayer")))
+		.Times(2)
+		.WillRepeatedly(::testing::Return(static_cast<void*>(&playerMock)));
 	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.System")))
 		.Times(3)
 		.WillRepeatedly(::testing::Return(nullptr));

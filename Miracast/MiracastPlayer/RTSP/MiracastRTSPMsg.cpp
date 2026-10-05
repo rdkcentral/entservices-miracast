@@ -2441,7 +2441,7 @@ void MiracastRTSPMsg::send_msgto_rtsp_msg_hdler_thread(RTSP_HLDR_MSGQ_STRUCT rts
     MIRACASTLOG_TRACE("Exiting...");
 }
 
-bool MiracastRTSPMsg::queueStartRequest(RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data)
+bool MiracastRTSPMsg::queueStartRequest(const RTSP_HLDR_MSGQ_STRUCT& rtsp_hldr_msgq_data)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
     if ((nullptr == m_rtsp_msg_handler_thread) || m_stopInProgress)
