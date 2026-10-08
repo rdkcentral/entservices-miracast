@@ -1049,77 +1049,60 @@ namespace WPEFramework
 
         void MiracastServiceImplementation::onPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter)
         {
-            bool shutdownComplete = true;
             MIRACASTLOG_INFO("PowerMode pre-change [%s] -> [%s] transactionId[%d] stateChangeAfter[%d]",
                                 getPowerStateString(currentState).c_str(),
                                 getPowerStateString(newState).c_str(),
                                 transactionId, stateChangeAfter);
 
-            if (nullptr != _instance)
-            {
-                if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState) ||
-                    (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == newState))
-                {
-                    lock_guard<mutex> lck(_instance->m_DiscoveryStateMutex);
-                    _instance->m_PowerTransitionShutdownRequested = true;
-                    _instance->remove_all_polling_timers();
-
-                    if (_powerManagerPlugin && _registeredPreChangeClient &&
-                        (Core::ERROR_NONE != _powerManagerPlugin->DelayPowerModeChangeBy(_pwrMgrPreChangeClientId, transactionId, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS)))
-                    {
-                        MIRACASTLOG_WARNING("Unable to extend PowerManager pre-change window");
-                    }
-
-                    const auto shutdownDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS);
-                    PluginHost::IShell* service = _instance->m_CurrentService;
-                    if (nullptr != service)
-                    {
-                        Exchange::IMiracastPlayer* player = service->QueryInterfaceByCallsign<Exchange::IMiracastPlayer>(_T("org.rdk.MiracastPlayer"));
-                        if (nullptr != player)
-                        {
-                            Exchange::IMiracastPlayer::Result playerResult;
-                            Core::hresult playerStatus = player->StopRequest(_T(""), _T(""), STOP_REASON_POWER_TRANSITION, playerResult);
-                            if ((Core::ERROR_NONE != playerStatus) || !playerResult.success)
-                            {
-                                MIRACASTLOG_ERROR("Player did not complete teardown before power transition");
-                                shutdownComplete = false;
-                            }
-                            player->Release();
-                        }
-                    }
-
-                    if (_instance->m_miracast_ctrler_obj)
-                    {
-                        const auto remainingTime = std::chrono::duration_cast<std::chrono::milliseconds>(shutdownDeadline - std::chrono::steady_clock::now());
-                        if (!_instance->m_miracast_ctrler_obj->stop_for_power_transition(remainingTime))
-                        {
-                            MIRACASTLOG_ERROR("Controller did not complete P2P teardown before power transition");
-                            shutdownComplete = false;
-                        }
-                    }
-                    _instance->m_PowerTransitionShutdownRequested = shutdownComplete;
-                }
-            }
-
-            if (_powerManagerPlugin && _registeredPreChangeClient && shutdownComplete)
-            {
-                _powerManagerPlugin->PowerModePreChangeComplete(_pwrMgrPreChangeClientId, transactionId);
-            }
-            else if (!shutdownComplete)
-            {
-                MIRACASTLOG_ERROR("PowerManager pre-change remains unacknowledged because teardown did not complete");
-            }
-        }
-
-        void MiracastServiceImplementation::onPowerModeChanged(const PowerState currentState, const PowerState newState)
-        {
             if (nullptr == _instance)
             {
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK-PWR Miracast Service not enabled yet ####");
                 return;
             }
-            lock_guard<mutex> lck(_instance->m_DiscoveryStateMutex);
-            _instance->setPowerStateInternal(newState);
+
+            const bool enteringLowPower =
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY == newState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP == newState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == newState);
+            bool sessionOngoing = false;
+            {
+                lock_guard<mutex> lck(_instance->m_DiscoveryStateMutex);
+                if (enteringLowPower)
+                {
+                    _instance->m_PowerTransitionShutdownRequested = true;
+                    {
+                        lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
+                        sessionOngoing = MIRACAST_SERVICE_STATE_PLAYER_LAUNCHED == _instance->m_eService_state;
+                    }
+
+                    _instance->remove_all_polling_timers();
+                    if (sessionOngoing && _powerManagerPlugin && _registeredPreChangeClient &&
+                        (Core::ERROR_NONE != _powerManagerPlugin->DelayPowerModeChangeBy(_pwrMgrPreChangeClientId, transactionId, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS)))
+                    {
+                        MIRACASTLOG_WARNING("Unable to extend PowerManager pre-change window");
+                    }
+
+                    if (sessionOngoing)
+                    {
+                        MIRACASTLOG_INFO("Ongoing Miracast session will be stopped through the power-mode disable path");
+                    }
+                    else
+                    {
+                        MIRACASTLOG_INFO("No ongoing Miracast session; skipping session-specific power-transition delay");
+                    }
+                }
+            }
+
+            Core::IWorkerPool::Instance().Submit(PowerStateJob::Create(_instance, newState));
+
+        }
+
+        void MiracastServiceImplementation::onPowerModeChanged(const PowerState currentState, const PowerState newState)
+        {
+            MIRACASTLOG_INFO("Power mode change [%s] -> [%s] handled during pre-change",
+                                getPowerStateString(currentState).c_str(),
+                                getPowerStateString(newState).c_str());
         }
 
         void MiracastServiceImplementation::InitializePowerState()
@@ -1207,20 +1190,16 @@ namespace WPEFramework
                 }
             }
             else if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState) ||
+                     (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY == pwrState) ||
+                     (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP == pwrState) ||
                      (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == pwrState))
             {
+                _instance->m_PowerTransitionShutdownRequested = true;
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
                 if ( _instance->m_isServiceEnabled )
                 {
-                    if (_instance->m_PowerTransitionShutdownRequested)
-                    {
-                        MIRACASTLOG_INFO("PowerManager pre-change shutdown already completed");
-                    }
-                    else
-                    {
-                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
-                        _instance->setEnableInternal(false);
-                    }
+                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
+                    _instance->setEnableInternal(false);
                 }
                 else
                 {
@@ -1228,7 +1207,6 @@ namespace WPEFramework
                 }
                 _instance->remove_all_polling_timers();
                 m_IsTransitionFromLowPower.store(true);
-                _instance->m_PowerTransitionShutdownRequested = false;
             }
             MIRACASTLOG_TRACE("Exiting ...");
         }

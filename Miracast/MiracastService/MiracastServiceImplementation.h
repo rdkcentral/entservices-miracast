@@ -140,6 +140,50 @@ namespace WPEFramework
                         JsonObject _params;
                 }; // class Job
 
+                class PowerStateJob : public Core::IDispatch
+                {
+                public:
+                    PowerStateJob(MiracastServiceImplementation* implementation, PowerState powerState)
+                        : _implementation(implementation)
+                        , _powerState(powerState)
+                    {
+                        if (_implementation != nullptr)
+                        {
+                            _implementation->AddRef();
+                        }
+                    }
+
+                    PowerStateJob(const PowerStateJob&) = delete;
+                    PowerStateJob& operator=(const PowerStateJob&) = delete;
+
+                    ~PowerStateJob() override
+                    {
+                        if (_implementation != nullptr)
+                        {
+                            _implementation->Release();
+                        }
+                    }
+
+                    static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation* implementation, PowerState powerState)
+                    {
+        #ifndef USE_THUNDER_R4
+                        return Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation, powerState));
+        #else
+                        return Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation, powerState));
+        #endif
+                    }
+
+                    void Dispatch() override
+                    {
+                        lock_guard<mutex> lock(_implementation->m_DiscoveryStateMutex);
+                        _implementation->setPowerStateInternal(_powerState);
+                    }
+
+                private:
+                    MiracastServiceImplementation* _implementation;
+                    const PowerState _powerState;
+                };
+
             public:
                 uint32_t Configure(PluginHost::IShell* service) override;
 

@@ -22,11 +22,8 @@
 
 #include <string>
 #include <sstream>
-#include <chrono>
-#include <condition_variable>
 #include <fcntl.h>
 #include <algorithm>
-#include <mutex>
 #include <vector>
 #include <glib.h>
 #include <semaphore.h>
@@ -119,7 +116,6 @@ public:
     void switch_launch_request_context(const std::string& source_dev_ip,const std::string& source_dev_mac,const std::string& source_dev_name,const std::string& sink_dev_ip);
     void start_discoveryAsync(void);
     void stop_discoveryAsync(void);
-    bool stop_for_power_transition(std::chrono::milliseconds timeout);
     void restart_discoveryAsync(void);
 
 private:
@@ -145,9 +141,6 @@ private:
     std::string get_SourcePeerIface(std::string& devMac);
 
     MiracastServiceNotifier *m_notify_handler;
-    std::mutex m_powerTransitionStopMutex;
-    std::condition_variable m_powerTransitionStopCondition;
-    bool m_powerTransitionStopComplete{false};
     std::string m_connected_mac_addr;
     std::string m_connected_device_name;
     std::string m_new_device_mac_addr;

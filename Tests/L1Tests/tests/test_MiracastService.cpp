@@ -2160,12 +2160,12 @@ TEST_F(MiracastServiceEventTest, powerStateChange)
 
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 0, 0);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, 0, 0);
     sleep(5);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 0, 0);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": false}"), response));
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, 0, 0);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 	plugin->Deinitialize(nullptr);
 
@@ -2180,20 +2180,19 @@ TEST_F(MiracastServiceEventTest, powerPreChangeRegistersAndCompletes)
 		.WillOnce(::testing::Return(Core::ERROR_NONE));
 	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(77u, 101))
 		.WillOnce(::testing::Return(Core::ERROR_NONE));
-	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, STOP_REASON_POWER_TRANSITION, ::testing::_))
-		.WillOnce(::testing::Invoke([](const string&, const string&, const int, Exchange::IMiracastPlayer::Result& result) {
-			result.success = true;
-			return Core::ERROR_NONE;
-		}));
+	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, ::testing::_, ::testing::_)).Times(0);
 
 	initializePowerTest();
 	EXPECT_TRUE(Plugin::MiracastServiceImplementation::_instance->_registeredPreChangeClient);
+	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 
-	MiracastController* controller = Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj;
-	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = nullptr;
+	Plugin::MiracastServiceImplementation* implementation = Plugin::MiracastServiceImplementation::_instance;
+	implementation->onMiracastServiceClientConnectionRequest("00:11:22:33:44:55", "test-device");
+	Exchange::IMiracastService::Result acceptResult;
+	EXPECT_EQ(Core::ERROR_NONE, implementation->AcceptClientConnection("Accept", acceptResult));
+	implementation->onMiracastServiceLaunchRequest("192.0.2.1", "00:11:22:33:44:55", "test-device", "192.0.2.2", true);
 	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_ON,
 		Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 101, 15);
-	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = controller;
 
 	deinitializePowerTest();
 }
@@ -2207,27 +2206,16 @@ TEST_F(MiracastServiceEventTest, powerPreChangeRegistrationFailureDoesNotAddClie
 	deinitializePowerTest();
 }
 
-TEST_F(MiracastServiceEventTest, powerPreChangePlayerTimeoutDoesNotComplete)
+TEST_F(MiracastServiceEventTest, powerPreChangeWithoutSessionSkipsSessionDelay)
 {
-	EXPECT_EQ(5, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS - MIRACAST_POWER_TRANSITION_PLAYER_TIMEOUT_SECONDS);
 	configurePowerManagerMocks();
-	EXPECT_CALL(PowerManagerMock::Mock(), DelayPowerModeChangeBy(77u, 102, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS))
-		.WillOnce(::testing::Return(Core::ERROR_NONE));
+	EXPECT_CALL(PowerManagerMock::Mock(), DelayPowerModeChangeBy(::testing::_, ::testing::_, ::testing::_)).Times(0);
 	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(::testing::_, ::testing::_)).Times(0);
-	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, STOP_REASON_POWER_TRANSITION, ::testing::_))
-		.WillOnce(::testing::Invoke([](const string&, const string&, const int, Exchange::IMiracastPlayer::Result& result) {
-			result.success = false;
-			result.message = "RTSP teardown timed out";
-			return Core::ERROR_NONE;
-		}));
+	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, ::testing::_, ::testing::_)).Times(0);
 
 	initializePowerTest();
-
-	MiracastController* controller = Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj;
-	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = nullptr;
 	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_ON,
 		Exchange::IPowerManager::POWER_STATE_OFF, 102, 15);
-	Plugin::MiracastServiceImplementation::m_miracast_ctrler_obj = controller;
 
 	deinitializePowerTest();
 }
@@ -2235,44 +2223,29 @@ TEST_F(MiracastServiceEventTest, powerPreChangePlayerTimeoutDoesNotComplete)
 TEST_F(MiracastServiceEventTest, powerPreChangeRecoversFromDeepSleepAndOff)
 {
 	configurePowerManagerMocks();
-	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.MiracastPlayer")))
-		.Times(2)
-		.WillRepeatedly(::testing::Return(static_cast<void*>(&playerMock)));
+	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.MiracastPlayer"))).Times(0);
 	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("org.rdk.System")))
 		.Times(3)
 		.WillRepeatedly(::testing::Return(nullptr));
 	EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::StrEq("SecurityAgent")))
 		.Times(3)
 		.WillRepeatedly(::testing::Return(nullptr));
-	EXPECT_CALL(PowerManagerMock::Mock(), DelayPowerModeChangeBy(77u, ::testing::_, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS))
-		.Times(2)
-		.WillRepeatedly(::testing::Return(Core::ERROR_NONE));
-	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(77u, ::testing::_))
-		.Times(2)
-		.WillRepeatedly(::testing::Return(Core::ERROR_NONE));
-	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, STOP_REASON_POWER_TRANSITION, ::testing::_))
-		.Times(2)
-		.WillRepeatedly(::testing::Invoke([](const string&, const string&, const int, Exchange::IMiracastPlayer::Result& result) {
-			result.success = true;
-			return Core::ERROR_NONE;
-		}));
+	EXPECT_CALL(PowerManagerMock::Mock(), DelayPowerModeChangeBy(::testing::_, ::testing::_, ::testing::_)).Times(0);
+	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(::testing::_, ::testing::_)).Times(0);
+	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, ::testing::_, ::testing::_)).Times(0);
 
 	initializePowerTest();
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 
 	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_ON,
 		Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 201, 15);
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Exchange::IPowerManager::POWER_STATE_ON,
-		Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP,
-		Exchange::IPowerManager::POWER_STATE_ON);
+	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP,
+		Exchange::IPowerManager::POWER_STATE_ON, 0, 0);
 
 	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_ON,
 		Exchange::IPowerManager::POWER_STATE_OFF, 202, 15);
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Exchange::IPowerManager::POWER_STATE_ON,
-		Exchange::IPowerManager::POWER_STATE_OFF);
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Exchange::IPowerManager::POWER_STATE_OFF,
-		Exchange::IPowerManager::POWER_STATE_ON);
+	preChangeNotification->OnPowerModePreChange(Exchange::IPowerManager::POWER_STATE_OFF,
+		Exchange::IPowerManager::POWER_STATE_ON, 0, 0);
 
 	deinitializePowerTest();
 }

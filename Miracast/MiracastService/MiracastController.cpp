@@ -1312,17 +1312,6 @@ void MiracastController::Controller_Thread(void *args)
                         remove_P2PGroupInstance();
                     }
                     break;
-                    case CONTROLLER_STOP_FOR_POWER_TRANSITION:
-                    {
-                        MIRACASTLOG_INFO("CONTROLLER_STOP_FOR_POWER_TRANSITION Received\n");
-                        stop_session(false);
-                        {
-                            std::lock_guard<std::mutex> lock(m_powerTransitionStopMutex);
-                            m_powerTransitionStopComplete = true;
-                        }
-                        m_powerTransitionStopCondition.notify_all();
-                    }
-                    break;
                     case CONTROLLER_CONNECT_REQ_REJECT:
                     case CONTROLLER_CONNECT_REQ_TIMEOUT:
                     {
@@ -1402,7 +1391,7 @@ void MiracastController::set_enable(bool is_enabled)
     {
         MIRACASTLOG_INFO("MIRACAST_SERVICE_WFD_STOP Received");
         m_start_discovering_enabled = false;
-        stop_session(true);
+        stop_discoveryAsync();
     }
     MIRACASTLOG_TRACE("Exiting...");
 }
@@ -1509,23 +1498,6 @@ void MiracastController::stop_discoveryAsync(void)
     controller_msgq_data.state = CONTROLLER_STOP_DISCOVERING;
     send_thundermsg_to_controller_thread(controller_msgq_data);
     MIRACASTLOG_TRACE("Exiting...");
-}
-
-bool MiracastController::stop_for_power_transition(std::chrono::milliseconds timeout)
-{
-    if (nullptr == m_controller_thread)
-    {
-        return false;
-    }
-
-    std::unique_lock<std::mutex> lock(m_powerTransitionStopMutex);
-    m_powerTransitionStopComplete = false;
-    CONTROLLER_MSGQ_STRUCT message = {};
-    message.state = CONTROLLER_STOP_FOR_POWER_TRANSITION;
-    send_thundermsg_to_controller_thread(message);
-    return m_powerTransitionStopCondition.wait_for(lock, timeout, [this]() {
-        return m_powerTransitionStopComplete;
-    });
 }
 
 void MiracastController::restart_discoveryAsync(void)
