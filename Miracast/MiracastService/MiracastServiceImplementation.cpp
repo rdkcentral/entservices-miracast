@@ -299,6 +299,94 @@ namespace WPEFramework
             }
             MIRACASTLOG_TRACE("Exiting ...");
         }
+
+        bool MiracastServiceImplementation::beginPowerStateCallback()
+        {
+            lock_guard<mutex> lock(m_PowerStateJobMutex);
+            if (!m_AcceptPowerStateJobs)
+            {
+                return false;
+            }
+            ++m_ActivePowerStateCallbacks;
+            return true;
+        }
+
+        void MiracastServiceImplementation::endPowerStateCallback()
+        {
+            {
+                lock_guard<mutex> lock(m_PowerStateJobMutex);
+                ASSERT(m_ActivePowerStateCallbacks > 0);
+                --m_ActivePowerStateCallbacks;
+            }
+            m_PowerStateJobCondition.notify_all();
+        }
+
+        bool MiracastServiceImplementation::enqueuePowerStateJob(PowerState powerState)
+        {
+            lock_guard<mutex> lock(m_PowerStateJobMutex);
+            m_PowerStateQueue.push_back(powerState);
+            ++m_PendingPowerStateJobs;
+            if (m_PowerStateJobScheduled)
+            {
+                return false;
+            }
+            m_PowerStateJobScheduled = true;
+            return true;
+        }
+
+        void MiracastServiceImplementation::dispatchNextPowerStateJob()
+        {
+            PowerState powerState;
+            {
+                lock_guard<mutex> lock(m_PowerStateJobMutex);
+                ASSERT(!m_PowerStateQueue.empty());
+                if (m_PowerStateQueue.empty())
+                {
+                    m_PowerStateJobScheduled = false;
+                    return;
+                }
+                powerState = m_PowerStateQueue.front();
+            }
+
+            {
+                lock_guard<mutex> lock(m_DiscoveryStateMutex);
+                setPowerStateInternal(powerState);
+            }
+
+            bool dispatchNext = false;
+            {
+                lock_guard<mutex> lock(m_PowerStateJobMutex);
+                m_PowerStateQueue.pop_front();
+                ASSERT(m_PendingPowerStateJobs > 0);
+                --m_PendingPowerStateJobs;
+                dispatchNext = !m_PowerStateQueue.empty();
+                if (!dispatchNext)
+                {
+                    m_PowerStateJobScheduled = false;
+                }
+            }
+            m_PowerStateJobCondition.notify_all();
+
+            if (dispatchNext)
+            {
+                Core::IWorkerPool::Instance().Submit(PowerStateJob::Create(this));
+            }
+        }
+
+        void MiracastServiceImplementation::stopPowerStateJobs()
+        {
+            unique_lock<mutex> lock(m_PowerStateJobMutex);
+            m_AcceptPowerStateJobs = false;
+            m_PowerStateJobCondition.wait(lock, [this]() {
+                return (0 == m_ActivePowerStateCallbacks) && (0 == m_PendingPowerStateJobs);
+            });
+        }
+
+        void MiracastServiceImplementation::enablePowerStateJobs()
+        {
+            lock_guard<mutex> lock(m_PowerStateJobMutex);
+            m_AcceptPowerStateJobs = true;
+        }
         /*  Helper and Internal methods End */
         /* ------------------------------------------------------------------------------------------------------- */
 
@@ -424,6 +512,7 @@ namespace WPEFramework
             {
 				MIRACASTLOG_INFO("MiracastServiceImplementation::Configure deinitialize");
                 MIRACASTLOG_TRACE("Call MiracastServiceImplementation deinitialize");
+                stopPowerStateJobs();
                 remove_all_polling_timers();
 
                 if (_powerManagerPlugin)
@@ -520,6 +609,7 @@ namespace WPEFramework
                             MIRACASTLOG_INFO("friendlyName updated properly...");
                         }
                         m_isServiceInitialized = true;
+                        enablePowerStateJobs();
                         result = Core::ERROR_NONE;
                     }
                     else
@@ -1059,6 +1149,11 @@ namespace WPEFramework
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK-PWR Miracast Service not enabled yet ####");
                 return;
             }
+            if (!_instance->beginPowerStateCallback())
+            {
+                MIRACASTLOG_INFO("Skipping PowerMode pre-change during service deinitialization");
+                return;
+            }
 
             const bool enteringLowPower =
                 (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState) ||
@@ -1066,6 +1161,7 @@ namespace WPEFramework
                 (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP == newState) ||
                 (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == newState);
             bool sessionOngoing = false;
+            bool dispatchPowerState = false;
             {
                 lock_guard<mutex> lck(_instance->m_DiscoveryStateMutex);
                 if (enteringLowPower)
@@ -1092,17 +1188,52 @@ namespace WPEFramework
                         MIRACASTLOG_INFO("No ongoing Miracast session; skipping session-specific power-transition delay");
                     }
                 }
+                dispatchPowerState = _instance->enqueuePowerStateJob(newState);
             }
 
-            Core::IWorkerPool::Instance().Submit(PowerStateJob::Create(_instance, newState));
+            _instance->endPowerStateCallback();
+            if (dispatchPowerState)
+            {
+                Core::IWorkerPool::Instance().Submit(PowerStateJob::Create(_instance));
+            }
 
         }
 
         void MiracastServiceImplementation::onPowerModeChanged(const PowerState currentState, const PowerState newState)
         {
-            MIRACASTLOG_INFO("Power mode change [%s] -> [%s] handled during pre-change",
-                                getPowerStateString(currentState).c_str(),
-                                getPowerStateString(newState).c_str());
+            if (_registeredPreChangeNotification)
+            {
+                MIRACASTLOG_INFO("Power mode change [%s] -> [%s] handled during pre-change",
+                                    getPowerStateString(currentState).c_str(),
+                                    getPowerStateString(newState).c_str());
+                return;
+            }
+
+            MIRACASTLOG_WARNING("Power mode pre-change unavailable; handling [%s] -> [%s] on changed notification",
+                                    getPowerStateString(currentState).c_str(),
+                                    getPowerStateString(newState).c_str());
+            if (nullptr == _instance)
+            {
+                MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK-PWR Miracast Service not enabled yet ####");
+                return;
+            }
+            if (!_instance->beginPowerStateCallback())
+            {
+                MIRACASTLOG_INFO("Skipping PowerMode changed handling during service deinitialization");
+                return;
+            }
+
+            bool dispatchPowerState = false;
+            {
+                lock_guard<mutex> lock(_instance->m_DiscoveryStateMutex);
+                dispatchPowerState = _instance->enqueuePowerStateJob(newState);
+            }
+
+            _instance->endPowerStateCallback();
+            if (dispatchPowerState)
+            {
+                Core::IWorkerPool::Instance().Submit(PowerStateJob::Create(_instance));
+            }
         }
 
         void MiracastServiceImplementation::InitializePowerState()

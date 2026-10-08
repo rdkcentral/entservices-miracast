@@ -34,6 +34,8 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <mutex>
 #include <vector>
 
@@ -143,9 +145,8 @@ namespace WPEFramework
                 class PowerStateJob : public Core::IDispatch
                 {
                 public:
-                    PowerStateJob(MiracastServiceImplementation* implementation, PowerState powerState)
+                    explicit PowerStateJob(MiracastServiceImplementation* implementation)
                         : _implementation(implementation)
-                        , _powerState(powerState)
                     {
                         if (_implementation != nullptr)
                         {
@@ -164,24 +165,22 @@ namespace WPEFramework
                         }
                     }
 
-                    static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation* implementation, PowerState powerState)
+                    static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation* implementation)
                     {
         #ifndef USE_THUNDER_R4
-                        return Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation, powerState));
+                        return Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation));
         #else
-                        return Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation, powerState));
+                        return Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerStateJob>::Create(implementation));
         #endif
                     }
 
                     void Dispatch() override
                     {
-                        lock_guard<mutex> lock(_implementation->m_DiscoveryStateMutex);
-                        _implementation->setPowerStateInternal(_powerState);
+                        _implementation->dispatchNextPowerStateJob();
                     }
 
                 private:
                     MiracastServiceImplementation* _implementation;
-                    const PowerState _powerState;
                 };
 
             public:
@@ -296,6 +295,13 @@ namespace WPEFramework
 
                 mutable Core::CriticalSection _adminLock;
                 std::mutex m_DiscoveryStateMutex;
+                std::mutex m_PowerStateJobMutex;
+                std::condition_variable m_PowerStateJobCondition;
+                std::deque<PowerState> m_PowerStateQueue;
+                uint32_t m_ActivePowerStateCallbacks{0};
+                uint32_t m_PendingPowerStateJobs{0};
+                bool m_AcceptPowerStateJobs{false};
+                bool m_PowerStateJobScheduled{false};
                 std::recursive_mutex m_EventMutex;
                 std::string m_src_dev_ip{""};
                 std::string m_src_dev_mac{""};
@@ -325,6 +331,12 @@ namespace WPEFramework
                 void reconnectWiFiPlugin(void);
                 bool updateSystemFriendlyName();
                 void setEnableInternal(bool isEnabled);
+                bool beginPowerStateCallback();
+                void endPowerStateCallback();
+                bool enqueuePowerStateJob(PowerState powerState);
+                void dispatchNextPowerStateJob();
+                void stopPowerStateJobs();
+                void enablePowerStateJobs();
 
                 void InitializePowerManager(PluginHost::IShell *service);
                 void registerEventHandlers();
