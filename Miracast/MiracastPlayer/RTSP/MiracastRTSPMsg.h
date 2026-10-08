@@ -439,6 +439,7 @@ class MiracastRTSPMsg
         static void destroyInstance();
         void send_msgto_rtsp_msg_hdler_thread(RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data);
         bool queueStartRequest(const RTSP_HLDR_MSGQ_STRUCT& rtsp_hldr_msgq_data);
+        bool queueStopRequest(MiracastPlayerStopReasonCode reason);
         void RTSPMessageHandler_Thread(void *args);
         bool stopAndWait(MiracastPlayerStopReasonCode reason, std::chrono::milliseconds timeout);
 

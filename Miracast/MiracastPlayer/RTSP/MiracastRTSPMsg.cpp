@@ -856,33 +856,51 @@ MiracastPlayerState MiracastRTSPMsg::get_state(void)
 
 bool MiracastRTSPMsg::stopAndWait(MiracastPlayerStopReasonCode reason, std::chrono::milliseconds timeout)
 {
-    bool completed = false;
+    if (!queueStopRequest(reason))
     {
-        std::unique_lock<std::mutex> lock(m_stateMutex);
-        if (((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE) && !m_startPending) ||
-            ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress && !m_startPending))
-        {
-            return true;
-        }
+        return false;
+    }
 
-        if (!m_stopInProgress)
-        {
-            m_stopInProgress = true;
-            RTSP_HLDR_MSGQ_STRUCT message = {};
-            message.state = RTSP_TEARDOWN_FROM_SINK2SRC;
-            message.stop_reason_code = reason;
-            send_msgto_rtsp_msg_hdler_thread(message);
-        }
+    std::unique_lock<std::mutex> lock(m_stateMutex);
+    if (((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE) && !m_startPending) ||
+        ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress && !m_startPending))
+    {
+        return true;
+    }
 
-        completed = m_stateCondition.wait_for(lock, timeout, [this]() {
+    const bool completed = m_stateCondition.wait_for(lock, timeout, [this]() {
             return (m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress;
         });
-    }
     if (!completed)
     {
         MIRACASTLOG_WARNING("RTSP teardown wait timed out; keeping the queued stop active until handler completion");
     }
     return completed;
+}
+
+bool MiracastRTSPMsg::queueStopRequest(MiracastPlayerStopReasonCode reason)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE) && !m_startPending) ||
+        ((m_current_state == WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED) && !m_stopInProgress && !m_startPending))
+    {
+        return true;
+    }
+
+    if (nullptr == m_rtsp_msg_handler_thread)
+    {
+        return false;
+    }
+
+    if (!m_stopInProgress)
+    {
+        m_stopInProgress = true;
+        RTSP_HLDR_MSGQ_STRUCT message = {};
+        message.state = RTSP_TEARDOWN_FROM_SINK2SRC;
+        message.stop_reason_code = reason;
+        send_msgto_rtsp_msg_hdler_thread(message);
+    }
+    return true;
 }
 
 void MiracastRTSPMsg::store_srcsink_info( std::string client_name,

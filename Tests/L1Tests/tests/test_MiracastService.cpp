@@ -2173,13 +2173,12 @@ TEST_F(MiracastServiceEventTest, powerStateChange)
 	removeFile("/var/run/wpa_supplicant/p2p0");
 }
 
-TEST_F(MiracastServiceEventTest, powerPreChangeRegistersAndCompletes)
+TEST_F(MiracastServiceEventTest, powerPreChangeDelaysForOngoingSession)
 {
 	configurePowerManagerMocks();
 	EXPECT_CALL(PowerManagerMock::Mock(), DelayPowerModeChangeBy(77u, 101, MIRACAST_POWER_TRANSITION_TIMEOUT_SECONDS))
 		.WillOnce(::testing::Return(Core::ERROR_NONE));
-	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(77u, 101))
-		.WillOnce(::testing::Return(Core::ERROR_NONE));
+	EXPECT_CALL(PowerManagerMock::Mock(), PowerModePreChangeComplete(77u, 101)).Times(0);
 	EXPECT_CALL(playerMock, StopRequest(::testing::_, ::testing::_, ::testing::_, ::testing::_)).Times(0);
 
 	initializePowerTest();
