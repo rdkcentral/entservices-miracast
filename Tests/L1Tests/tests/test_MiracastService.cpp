@@ -35,6 +35,18 @@
 #include "WorkerPoolImplementation.h"
 #include "MiracastServiceImplementation.h"
 #include <sys/time.h>
+
+bool appendMiracastCommandOutput(char* destination, size_t capacity, const char* line);
+
+TEST(MiracastServiceSecurityTest, BoundsCommonCommandOutput)
+{
+    char output[8] = "abc";
+    EXPECT_TRUE(appendMiracastCommandOutput(output, sizeof(output), "de"));
+    EXPECT_STREQ("abcde", output);
+    EXPECT_FALSE(appendMiracastCommandOutput(output, sizeof(output), "0123456789"));
+    EXPECT_EQ('\0', output[sizeof(output) - 1]);
+    EXPECT_FALSE(appendMiracastCommandOutput(nullptr, sizeof(output), "line"));
+}
 #include <future>
 
 using namespace WPEFramework;
