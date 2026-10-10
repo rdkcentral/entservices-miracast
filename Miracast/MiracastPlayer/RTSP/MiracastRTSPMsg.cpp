@@ -20,6 +20,34 @@
 #include <MiracastRTSPMsg.h>
 #include <MiracastGstPlayer.h>
 
+bool parseRtspInteger(const std::string& input, int& value)
+{
+    try {
+        size_t parsed = 0;
+        const int candidate = std::stoi(input, &parsed);
+        if (parsed != input.size() || candidate < 0)
+            return false;
+        value = candidate;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool parseRtspSize(const std::string& input, size_t& value)
+{
+    try {
+        size_t parsed = 0;
+        const size_t candidate = std::stoul(input, &parsed);
+        if (parsed != input.size())
+            return false;
+        value = candidate;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 MiracastRTSPMsg *MiracastRTSPMsg::m_rtsp_msg_obj{nullptr};
 
 static RTSP_MSG_FMT_TEMPLATE m_rtsp_msg_fmt_template[] = {
@@ -1543,7 +1571,10 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m6_ack_m7_send_request(std::string rt
                 MIRACASTLOG_TRACE("Session Number[%s]\n",session_number.c_str());
                 if (match.size() > 2 && match[2].matched)
                 {
-                    timeoutValue = std::stoi(match[2]);
+                    if (!parseRtspInteger(match[2].str(), timeoutValue)) {
+                        MIRACASTLOG_ERROR("Invalid timeout value; using default\n");
+                        timeoutValue = RTSP_DFLT_KEEP_ALIVE_WAIT_TIMEOUT_SEC;
+                    }
                     MIRACASTLOG_INFO("timeoutValue[%d] in M6 ACK\n",timeoutValue);
                 }
                 else
@@ -1901,8 +1932,12 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
         if (valueEnd != std::string::npos)
         {
             std::string lengthStr = input.substr(valueStart, valueEnd - valueStart);
-            size_t expectedLength = std::stoul(lengthStr);
-            returnvalue = actualContentLength - expectedLength;
+            size_t expectedLength = 0;
+            if (parseRtspSize(lengthStr, expectedLength) && expectedLength <= actualContentLength) {
+                returnvalue = actualContentLength - expectedLength;
+            } else {
+                MIRACASTLOG_ERROR("Invalid Content-Length\n");
+            }
         }
     }
     // Content-Length not found or invalid format

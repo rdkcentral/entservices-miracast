@@ -33,6 +33,25 @@
 #include "WrapsMock.h"
 #include "WorkerPoolImplementation.h"
 #include "MiracastPlayerImplementation.h"
+
+bool parseRtspInteger(const std::string& input, int& value);
+bool parseRtspSize(const std::string& input, size_t& value);
+
+TEST(MiracastPlayerSecurityTest, ParsesRtspNumericFieldsSafely)
+{
+    int integerValue = 0;
+    EXPECT_TRUE(parseRtspInteger("30", integerValue));
+    EXPECT_EQ(30, integerValue);
+    EXPECT_FALSE(parseRtspInteger("-1", integerValue));
+    EXPECT_FALSE(parseRtspInteger("12suffix", integerValue));
+    EXPECT_FALSE(parseRtspInteger("999999999999999999999", integerValue));
+
+    size_t sizeValue = 0;
+    EXPECT_TRUE(parseRtspSize("128", sizeValue));
+    EXPECT_EQ(128u, sizeValue);
+    EXPECT_FALSE(parseRtspSize("128suffix", sizeValue));
+    EXPECT_FALSE(parseRtspSize("999999999999999999999999", sizeValue));
+}
 #include <sys/time.h>
 #include <future>
 #include <thread>
