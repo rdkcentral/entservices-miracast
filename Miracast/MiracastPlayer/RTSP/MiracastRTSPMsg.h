@@ -25,6 +25,9 @@
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <interfaces/IMiracastPlayer.h>
 
 using namespace WPEFramework;
@@ -52,13 +55,6 @@ typedef enum rtsp_status_e
     RTSP_METHOD_NOT_SUPPORTED
 }
 RTSP_STATUS;
-
-typedef enum miracast_player_stop_reason_code_e
-{
-    STOP_REASON_APP_REQ_FOR_EXIT = 300,
-    STOP_REASON_APP_REQ_FOR_NEW_CONNECTION = 301
-}
-MiracastPlayerStopReasonCode;
 
 typedef struct rtsp_hldr_msgq_st
 {
@@ -442,7 +438,10 @@ class MiracastRTSPMsg
         static MiracastRTSPMsg *getInstance(MiracastError &error_code , MiracastPlayerNotifier *player_notifier = nullptr , MiracastThread *controller_thread_id = nullptr);
         static void destroyInstance();
         void send_msgto_rtsp_msg_hdler_thread(RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data);
+        bool queueStartRequest(const RTSP_HLDR_MSGQ_STRUCT& rtsp_hldr_msgq_data);
+        bool queueStopRequest(MiracastPlayerStopReasonCode reason);
         void RTSPMessageHandler_Thread(void *args);
+        bool stopAndWait(MiracastPlayerStopReasonCode reason, std::chrono::milliseconds timeout);
 
     private:
         static MiracastRTSPMsg *m_rtsp_msg_obj;
@@ -467,6 +466,10 @@ class MiracastRTSPMsg
         std::string m_getparameter_request;
 
         MiracastPlayerState m_current_state;
+        std::mutex m_stateMutex;
+        std::condition_variable m_stateCondition;
+        bool m_startPending{false};
+        bool m_stopInProgress{false};
         unsigned int m_wfd_src_req_timeout;
         unsigned int m_wfd_src_res_timeout;
         unsigned int m_current_wait_time_ms;

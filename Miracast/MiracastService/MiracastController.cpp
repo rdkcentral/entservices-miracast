@@ -1391,7 +1391,7 @@ void MiracastController::set_enable(bool is_enabled)
     {
         MIRACASTLOG_INFO("MIRACAST_SERVICE_WFD_STOP Received");
         m_start_discovering_enabled = false;
-        stop_session(true);
+        stop_discoveryAsync();
     }
     MIRACASTLOG_TRACE("Exiting...");
 }
