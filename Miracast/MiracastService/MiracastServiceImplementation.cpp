@@ -24,8 +24,21 @@
 #include "UtilsJsonRpc.h"
 
 #include "UtilsSynchroIarm.hpp"
+#include <cctype>
 
 using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
+
+std::string sanitizeAutoconnectValue(const std::string& input, const bool allowSpace)
+{
+    std::string output;
+    output.reserve(input.size());
+    for (unsigned char character : input) {
+        if (!(std::isalnum(character) || character == '.' || character == ':' || character == '-' || character == '_' || (allowSpace && character == ' ')))
+            return {};
+        output += static_cast<char>(character);
+    }
+    return output;
+}
 
 #define MIRACAST_DEVICE_PROPERTIES_FILE "/etc/device.properties"
 #define SERVER_DETAILS "127.0.0.1:9998"
@@ -913,16 +926,30 @@ namespace WPEFramework
 
                 if (0 == access("/opt/miracast_autoconnect", F_OK))
                 {
-                    char commandBuffer[768] = {0};
-                    snprintf( commandBuffer,
-                            sizeof(commandBuffer),
-                            "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",
-                            src_dev_ip.c_str(),
-                            src_dev_mac.c_str(),
-                            src_dev_name.c_str(),
-                            sink_dev_ip.c_str());
-                    MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
-                    MiracastCommon::execute_SystemCommand(commandBuffer);
+                    /* Security: sanitize peer-controlled values before shell interpolation.
+                     * Only allow characters valid in IP addresses, MAC addresses, and device names.
+                     * This prevents OS command injection via crafted SSID / device names. */
+                    std::string safe_ip   = sanitizeAutoconnectValue(src_dev_ip, false);
+                    std::string safe_mac  = sanitizeAutoconnectValue(src_dev_mac, false);
+                    std::string safe_name = sanitizeAutoconnectValue(src_dev_name, true);
+                    std::string safe_sink = sanitizeAutoconnectValue(sink_dev_ip, false);
+
+                    if (safe_ip.empty() || safe_mac.empty() || safe_name.empty() || safe_sink.empty()) {
+                        MIRACASTLOG_ERROR("Rejected autoconnect: sanitized device parameter was empty");
+                    }
+                    else
+                    {
+                        char commandBuffer[768] = {0};
+                        snprintf( commandBuffer,
+                                sizeof(commandBuffer),
+                                "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",
+                                safe_ip.c_str(),
+                                safe_mac.c_str(),
+                                safe_name.c_str(),
+                                safe_sink.c_str());
+                        MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
+                        MiracastCommon::execute_SystemCommand(commandBuffer);
+                    }
                 }
                 else
                 {
