@@ -1065,23 +1065,41 @@ namespace WPEFramework
                                 getPowerStateString(currentState).c_str(),
                                 getPowerStateString(newState).c_str());
 
-            if (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState)
+            switch (newState)
             {
-                if (!m_IsDeepSleepInProgress.exchange(true))
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP:
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF:
                 {
-                    prepareForDeepSleep(transactionId, stateChangeAfter);
+                    if (!m_IsDeepSleepInProgress.exchange(true))
+                    {
+                        prepareForDeepSleep(transactionId, stateChangeAfter);
+                    }
+                    else
+                    {
+                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Session teardown already done ####");
+                    }
                 }
-                else
+                break;
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_ON:
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY:
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP:
                 {
-                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Deep sleep teardown already done ####");
+                    // Network stays up in these states, so leaving deep sleep/off into any of them resumes Miracast.
+                    if (m_IsDeepSleepInProgress.exchange(false))
+                    {
+                        resumeFromDeepSleep();
+                    }
+                    else
+                    {
+                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR No resume required ####");
+                    }
                 }
-            }
-            else if (WPEFramework::Exchange::IPowerManager::POWER_STATE_ON == newState)
-            {
-                if (m_IsDeepSleepInProgress.exchange(false))
+                break;
+                default:
                 {
-                    resumeFromDeepSleep();
+                    MIRACASTLOG_WARNING("#### MCAST-TRIAGE-NOK-PWR Unhandled power state [%#04X] ####", newState);
                 }
+                break;
             }
 
             lock_guard<mutex> lck(m_DiscoveryStateMutex);
@@ -1262,7 +1280,8 @@ namespace WPEFramework
                 if (Core::ERROR_NONE == res)
                 {
                     setPowerStateInternal(pwrStateCur);
-                    if (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrStateCur)
+                    if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrStateCur) ||
+                        (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == pwrStateCur))
                     {
                         m_IsTransitionFromDeepSleep = true;
                     }
@@ -1283,7 +1302,7 @@ namespace WPEFramework
             {
                 case WPEFramework::Exchange::IPowerManager::POWER_STATE_ON: pwrStateStr = "ON"; break;
                 case WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF: pwrStateStr = "OFF"; break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY: pwrStateStr = "LIGHT_SLEEP"; break;
+                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY: pwrStateStr = "STANDBY"; break;
                 case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP: pwrStateStr = "LIGHT_SLEEP"; break;
                 case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP: pwrStateStr = "DEEP_SLEEP"; break;
                 default: pwrStateStr = "UNKNOWN"; break;
