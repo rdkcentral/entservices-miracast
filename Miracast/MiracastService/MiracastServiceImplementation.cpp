@@ -1055,117 +1055,7 @@ namespace WPEFramework
             MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR PreChange [%#04X] -> [%#04X] trxn[%d] stateChangeAfter[%d] ####",
                                 currentState, newState, transactionId, stateChangeAfter);
             // Session teardown can take seconds, so never block the PowerManager callback; the job acks on completion.
-            Core::IWorkerPool::Instance().Submit(PowerModeJob::Create(this, currentState, newState, transactionId, stateChangeAfter));
-        }
-
-        void MiracastServiceImplementation::handlePowerModeTransition(PowerState currentState, PowerState newState, int transactionId, int stateChangeAfter)
-        {
-            lock_guard<mutex> transitionLock(m_PowerTransitionMutex);
-            MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR PreChange [%s] -> [%s] ####",
-                                getPowerStateString(currentState).c_str(),
-                                getPowerStateString(newState).c_str());
-
-            switch (newState)
-            {
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP:
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF:
-                {
-                    if (!m_IsDeepSleepInProgress.exchange(true))
-                    {
-                        prepareForDeepSleep(transactionId, stateChangeAfter);
-                    }
-                    else
-                    {
-                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Session teardown already done ####");
-                    }
-                }
-                break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_ON:
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY:
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP:
-                {
-                    // Network stays up in these states, so leaving deep sleep/off into any of them resumes Miracast.
-                    if (m_IsDeepSleepInProgress.exchange(false))
-                    {
-                        resumeFromDeepSleep();
-                    }
-                    else
-                    {
-                        MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR No resume required ####");
-                    }
-                }
-                break;
-                default:
-                {
-                    MIRACASTLOG_WARNING("#### MCAST-TRIAGE-NOK-PWR Unhandled power state [%#04X] ####", newState);
-                }
-                break;
-            }
-
-            lock_guard<mutex> lck(m_DiscoveryStateMutex);
-            setPowerStateInternal(newState);
-            if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
-            {
-                Core::hresult res = _powerManagerPlugin->PowerModePreChangeComplete(m_PowerPreChangeClientId, transactionId);
-                if (Core::ERROR_NONE != res)
-                {
-                    MIRACASTLOG_ERROR("PowerModePreChangeComplete failed trxn[%d], ErrorCode [%#04X]", transactionId, res);
-                }
-                else
-                {
-                    MIRACASTLOG_INFO("PowerModePreChangeComplete sent trxn[%d]", transactionId);
-                }
-            }
-        }
-
-        void MiracastServiceImplementation::prepareForDeepSleep(int transactionId, int stateChangeAfter)
-        {
-            MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Preparing for deep sleep ####");
-            if (stateChangeAfter < DEEP_SLEEP_TEARDOWN_BUDGET_SEC)
-            {
-                lock_guard<mutex> lck(m_DiscoveryStateMutex);
-                if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
-                {
-                    _powerManagerPlugin->DelayPowerModeChangeBy(m_PowerPreChangeClientId, transactionId, DEEP_SLEEP_TEARDOWN_BUDGET_SEC);
-                }
-            }
-
-            // Must be released outside m_DiscoveryStateMutex: its event thread may be blocked on that mutex.
-            releaseWiFiPlugin();
-
-            // Stop casting first so the source receives an RTSP TEARDOWN while the P2P link is still up.
-            stopActivePlayerSession();
-
-            lock_guard<mutex> lck(m_DiscoveryStateMutex);
-            remove_friendly_name_timer();
-            remove_wifi_connection_state_timer();
-            remove_miracast_connection_timer();
-
-            if ((!m_isServiceInitialized) || (nullptr == m_miracast_ctrler_obj))
-            {
-                return;
-            }
-
-            bool isServiceEnabled;
-            {
-                lock_guard<recursive_mutex> lock(m_EventMutex);
-                isServiceEnabled = m_isServiceEnabled;
-            }
-            if (isServiceEnabled)
-            {
-                MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
-                if (!m_miracast_ctrler_obj->stop_discoveryAndWait(DEEP_SLEEP_CONTROLLER_STOP_TIMEOUT_MS))
-                {
-                    MIRACASTLOG_WARNING("#### MCAST-TRIAGE-NOK-PWR P2P teardown not confirmed before timeout ####");
-                }
-                lock_guard<recursive_mutex> lock(m_EventMutex);
-                changeServiceState(MIRACAST_SERVICE_STATE_IDLE);
-            }
-            else
-            {
-                MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled. No need to disable it");
-            }
-            m_IsTransitionFromDeepSleep = true;
+            Core::IWorkerPool::Instance().Submit(PowerModeJob::Create(this, newState, transactionId, stateChangeAfter));
         }
 
         void MiracastServiceImplementation::stopActivePlayerSession(void)
@@ -1230,41 +1120,6 @@ namespace WPEFramework
             m_PlayerStopCv.notify_all();
         }
 
-        void MiracastServiceImplementation::resumeFromDeepSleep(void)
-        {
-            MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Resuming from deep sleep ####");
-            lock_guard<mutex> lck(m_DiscoveryStateMutex);
-            if ((!m_isServiceInitialized) || (nullptr == m_miracast_ctrler_obj))
-            {
-                return;
-            }
-
-            // The Wi-Fi JSON-RPC socket was released before suspend; a fresh link has no subscriptions yet, so this is safe under the lock.
-            subscribeWiFiEvents();
-
-            if (!updateSystemFriendlyName())
-            {
-                remove_friendly_name_timer();
-                m_FriendlyNameMonitorTimerID = g_timeout_add(2000, MiracastServiceImplementation::monitor_friendly_name_timercallback, this);
-                MIRACASTLOG_WARNING("Unable to get friendlyName after resume, requires polling [%u]...", m_FriendlyNameMonitorTimerID);
-            }
-
-            bool isServiceEnabled;
-            {
-                lock_guard<recursive_mutex> lock(m_EventMutex);
-                isServiceEnabled = m_isServiceEnabled;
-            }
-            if (isServiceEnabled && m_IsTransitionFromDeepSleep.exchange(false))
-            {
-                MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Enable Miracast discovery from PwrMgr ####");
-                m_miracast_ctrler_obj->restart_discoveryAsync();
-            }
-            else if (!isServiceEnabled)
-            {
-                MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled. No need to enable it");
-            }
-        }
-
         void MiracastServiceImplementation::InitializePowerState()
         {
             MIRACASTLOG_TRACE("Entering ...");
@@ -1280,11 +1135,6 @@ namespace WPEFramework
                 if (Core::ERROR_NONE == res)
                 {
                     setPowerStateInternal(pwrStateCur);
-                    if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrStateCur) ||
-                        (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == pwrStateCur))
-                    {
-                        m_IsTransitionFromDeepSleep = true;
-                    }
                     MIRACASTLOG_INFO("Current Power State is [%#04X]",pwrStateCur);
                 }
                 else
@@ -1311,15 +1161,107 @@ namespace WPEFramework
             return pwrStateStr;
         }
 
-        void MiracastServiceImplementation::setPowerStateInternal(PowerState pwrState)
+        void MiracastServiceImplementation::setPowerStateInternal(PowerState pwrState, bool isPreChange, int transactionId, int stateChangeAfter)
         {
             MIRACASTLOG_TRACE("Entering ...");
+            lock_guard<mutex> transitionLock(m_PowerTransitionMutex);
             PowerState old_pwr_state = m_powerState,
                                         new_pwr_state = pwrState;
             m_powerState = pwrState;
             MIRACASTLOG_INFO("changing power state [%s] -> [%s]",
                                 getPowerStateString(old_pwr_state).c_str(),
                                 getPowerStateString(new_pwr_state).c_str());
+            if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_ON == pwrState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY == pwrState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP == pwrState))
+            {
+                lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                if (m_IsDeepSleepInProgress.exchange(false) && m_isServiceInitialized && (nullptr != m_miracast_ctrler_obj))
+                {
+                    // A fresh link has no subscriptions yet, so creating it under the lock cannot deadlock with its event thread.
+                    subscribeWiFiEvents();
+                    if (!updateSystemFriendlyName())
+                    {
+                        remove_friendly_name_timer();
+                        m_FriendlyNameMonitorTimerID = g_timeout_add(2000, MiracastServiceImplementation::monitor_friendly_name_timercallback, this);
+                        MIRACASTLOG_WARNING("Unable to get friendlyName after resume, requires polling [%u]...", m_FriendlyNameMonitorTimerID);
+                    }
+                }
+
+                lock_guard<recursive_mutex> lock(m_EventMutex);
+                if ((m_IsTransitionFromDeepSleep) && (m_isServiceEnabled) && (nullptr != m_miracast_ctrler_obj))
+                {
+                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Enable Miracast discovery from PwrMgr [%d]",m_isServiceEnabled);
+                    m_miracast_ctrler_obj->restart_discoveryAsync();
+                    m_IsTransitionFromDeepSleep = false;
+                }
+                else if (!m_isServiceEnabled)
+                {
+                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to enable it",m_isServiceEnabled);
+                }
+            }
+            else if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState) ||
+                     (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == pwrState))
+            {
+                if (!m_IsDeepSleepInProgress.exchange(true))
+                {
+                    if (isPreChange && (stateChangeAfter < DEEP_SLEEP_TEARDOWN_BUDGET_SEC))
+                    {
+                        lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                        if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
+                        {
+                            _powerManagerPlugin->DelayPowerModeChangeBy(m_PowerPreChangeClientId, transactionId, DEEP_SLEEP_TEARDOWN_BUDGET_SEC);
+                        }
+                    }
+                    // Must be released outside m_DiscoveryStateMutex: its event thread may be blocked on that mutex.
+                    releaseWiFiPlugin();
+                    // Stop casting first so the source receives an RTSP TEARDOWN while the P2P link is still up.
+                    stopActivePlayerSession();
+                }
+
+                lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                bool isServiceEnabled;
+                {
+                    lock_guard<recursive_mutex> lock(m_EventMutex);
+                    isServiceEnabled = m_isServiceEnabled;
+                }
+                if ( isServiceEnabled && (nullptr != m_miracast_ctrler_obj) )
+                {
+                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast Discovery Disabled ####");
+                    // Replaces setEnableInternal(false) to confirm P2P teardown; m_EventMutex must not be held as the controller thread takes it.
+                    if (!m_miracast_ctrler_obj->stop_discoveryAndWait(DEEP_SLEEP_CONTROLLER_STOP_TIMEOUT_MS))
+                    {
+                        MIRACASTLOG_WARNING("#### MCAST-TRIAGE-NOK-PWR P2P teardown not confirmed before timeout ####");
+                    }
+                    lock_guard<recursive_mutex> lock(m_EventMutex);
+                    changeServiceState(MIRACAST_SERVICE_STATE_IDLE);
+                }
+                else
+                {
+                    MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to disable it",isServiceEnabled);
+                }
+                remove_friendly_name_timer();
+                remove_wifi_connection_state_timer();
+                remove_miracast_connection_timer();
+                m_IsTransitionFromDeepSleep = true;
+            }
+
+            if (isPreChange)
+            {
+                lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
+                {
+                    Core::hresult res = _powerManagerPlugin->PowerModePreChangeComplete(m_PowerPreChangeClientId, transactionId);
+                    if (Core::ERROR_NONE != res)
+                    {
+                        MIRACASTLOG_ERROR("PowerModePreChangeComplete failed trxn[%d], ErrorCode [%#04X]", transactionId, res);
+                    }
+                    else
+                    {
+                        MIRACASTLOG_INFO("PowerModePreChangeComplete sent trxn[%d]", transactionId);
+                    }
+                }
+            }
             MIRACASTLOG_TRACE("Exiting ...");
         }
         /*  PowerManager related methods End */

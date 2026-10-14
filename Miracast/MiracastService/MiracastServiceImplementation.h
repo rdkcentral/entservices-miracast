@@ -144,8 +144,8 @@ namespace WPEFramework
                 class EXTERNAL PowerModeJob : public Core::IDispatch
                 {
                     protected:
-                        PowerModeJob(MiracastServiceImplementation *impl, PowerState currentState, PowerState newState, int transactionId, int stateChangeAfter)
-                            : _impl(impl), _currentState(currentState), _newState(newState), _transactionId(transactionId), _stateChangeAfter(stateChangeAfter)
+                        PowerModeJob(MiracastServiceImplementation *impl, PowerState newState, int transactionId, int stateChangeAfter)
+                            : _impl(impl), _newState(newState), _transactionId(transactionId), _stateChangeAfter(stateChangeAfter)
                         {
                             if (_impl != nullptr)
                             {
@@ -165,23 +165,22 @@ namespace WPEFramework
                             }
                         }
 
-                        static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *impl, PowerState currentState, PowerState newState, int transactionId, int stateChangeAfter)
+                        static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *impl, PowerState newState, int transactionId, int stateChangeAfter)
                         {
         #ifndef USE_THUNDER_R4
-                            return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, currentState, newState, transactionId, stateChangeAfter)));
+                            return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId, stateChangeAfter)));
         #else
-                            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, currentState, newState, transactionId, stateChangeAfter)));
+                            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId, stateChangeAfter)));
         #endif
                         }
 
                         void Dispatch() override
                         {
-                            _impl->handlePowerModeTransition(_currentState, _newState, _transactionId, _stateChangeAfter);
+                            _impl->setPowerStateInternal(_newState, true, _transactionId, _stateChangeAfter);
                         }
 
                     private:
                         MiracastServiceImplementation *_impl;
-                        const PowerState _currentState;
                         const PowerState _newState;
                         const int _transactionId;
                         const int _stateChangeAfter;
@@ -336,10 +335,7 @@ namespace WPEFramework
                 void registerEventHandlers();
                 void InitializePowerState();
                 std::string getPowerStateString(PowerState pwrState);
-                void setPowerStateInternal(PowerState pwrState);
-                void handlePowerModeTransition(PowerState currentState, PowerState newState, int transactionId, int stateChangeAfter);
-                void prepareForDeepSleep(int transactionId, int stateChangeAfter);
-                void resumeFromDeepSleep(void);
+                void setPowerStateInternal(PowerState pwrState, bool isPreChange = false, int transactionId = 0, int stateChangeAfter = 0);
                 void stopActivePlayerSession(void);
                 void onPlayerStopped(void);
 
