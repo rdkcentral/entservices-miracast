@@ -36,6 +36,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include "libIBus.h"
@@ -144,8 +145,8 @@ namespace WPEFramework
                 class EXTERNAL PowerModeJob : public Core::IDispatch
                 {
                     protected:
-                        PowerModeJob(MiracastServiceImplementation *impl, PowerState newState, int transactionId, int stateChangeAfter)
-                            : _impl(impl), _newState(newState), _transactionId(transactionId), _stateChangeAfter(stateChangeAfter)
+                        PowerModeJob(MiracastServiceImplementation *impl, PowerState newState, int transactionId)
+                            : _impl(impl), _newState(newState), _transactionId(transactionId)
                         {
                             if (_impl != nullptr)
                             {
@@ -165,25 +166,24 @@ namespace WPEFramework
                             }
                         }
 
-                        static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *impl, PowerState newState, int transactionId, int stateChangeAfter)
+                        static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *impl, PowerState newState, int transactionId)
                         {
         #ifndef USE_THUNDER_R4
-                            return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId, stateChangeAfter)));
+                            return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId)));
         #else
-                            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId, stateChangeAfter)));
+                            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId)));
         #endif
                         }
 
                         void Dispatch() override
                         {
-                            _impl->setPowerStateInternal(_newState, true, _transactionId, _stateChangeAfter);
+                            _impl->setPowerStateInternal(_newState, true, _transactionId);
                         }
 
                     private:
                         MiracastServiceImplementation *_impl;
                         const PowerState _newState;
                         const int _transactionId;
-                        const int _stateChangeAfter;
                 }; // class PowerModeJob
 
             public:
@@ -313,7 +313,14 @@ namespace WPEFramework
                 std::atomic<bool> m_IsTransitionFromDeepSleep{false};
                 std::atomic<bool> m_IsDeepSleepInProgress{false};
                 uint32_t m_PowerPreChangeClientId{0};
+                std::mutex m_PowerManagerMutex;
                 std::mutex m_PowerTransitionMutex;
+                std::mutex m_PowerDelayMonitorCtrlMutex;
+                std::mutex m_PowerDelayMonitorMutex;
+                std::condition_variable m_PowerDelayMonitorCv;
+                bool m_PowerDelayMonitorDone{true};
+                int m_PowerDelayMonitorTransactionId{0};
+                std::thread m_PowerDelayMonitorThread;
                 std::mutex m_PlayerStopMutex;
                 std::condition_variable m_PlayerStopCv;
                 bool m_PlayerStopped{false};
@@ -335,7 +342,11 @@ namespace WPEFramework
                 void registerEventHandlers();
                 void InitializePowerState();
                 std::string getPowerStateString(PowerState pwrState);
-                void setPowerStateInternal(PowerState pwrState, bool isPreChange = false, int transactionId = 0, int stateChangeAfter = 0);
+                void setPowerStateInternal(PowerState pwrState, bool isPreChange = false, int transactionId = 0);
+                void requestPowerModeChangeDelay(int transactionId, int delaySec);
+                void startPowerDelayMonitor(int transactionId);
+                void stopPowerDelayMonitor(int transactionId, bool force = false);
+                void powerDelayMonitor(int transactionId);
                 void stopActivePlayerSession(void);
                 void onPlayerStopped(void);
 

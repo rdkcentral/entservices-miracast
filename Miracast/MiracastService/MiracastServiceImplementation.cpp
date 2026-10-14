@@ -39,7 +39,14 @@ using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
 /* Mirrors STOP_REASON_APP_REQ_FOR_EXIT in MiracastPlayer/RTSP/MiracastRTSPMsg.h */
 #define MIRACAST_PLAYER_STOP_REASON_APP_REQ_FOR_EXIT 300
 #define POWER_PRECHANGE_CLIENT_NAME "MiracastService"
+/* Initial reservation, sized to cover a normal teardown (player stop + P2P stop + Wi-Fi unsubscribe). */
 #define DEEP_SLEEP_TEARDOWN_BUDGET_SEC 8
+/* How long before the current reservation expires the monitor checks whether more time is needed. */
+#define DEEP_SLEEP_DELAY_RENEW_MARGIN_SEC 1
+/* Extra time added per extension when teardown is still running. */
+#define DEEP_SLEEP_DELAY_EXTENSION_SEC 2
+/* Upper bound so a hung teardown cannot hold off deep sleep indefinitely. */
+#define DEEP_SLEEP_MAX_DELAY_SEC 30
 #define DEEP_SLEEP_PLAYER_STOP_TIMEOUT_MS 3000
 #define DEEP_SLEEP_CONTROLLER_STOP_TIMEOUT_MS 4000
 
@@ -76,6 +83,7 @@ namespace WPEFramework
 
         MiracastServiceImplementation::~MiracastServiceImplementation()
         {
+            stopPowerDelayMonitor(0, true);
         }
 
         /**
@@ -424,7 +432,7 @@ namespace WPEFramework
 				MIRACASTLOG_INFO("MiracastServiceImplementation::Configure deinitialize");
                 MIRACASTLOG_TRACE("Call MiracastServiceImplementation deinitialize");
             	{
-                    lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                    lock_guard<mutex> lck(m_PowerManagerMutex);
                     if (_powerManagerPlugin)
                     {
                         // Must disengage from pre-change before unregistering the pre-change notification.
@@ -438,6 +446,7 @@ namespace WPEFramework
                     }
                     _registeredEventHandlers = false;
                 }
+                stopPowerDelayMonitor(0, true);
 
             	{
                     // Serialise with any in-flight power transition job, which may re-arm timers or use the controller.
@@ -1038,7 +1047,7 @@ namespace WPEFramework
                 Core::hresult res = _powerManagerPlugin->AddPowerModePreChangeClient(POWER_PRECHANGE_CLIENT_NAME, clientId);
                 if (Core::ERROR_NONE == res)
                 {
-                    lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                    lock_guard<mutex> lck(m_PowerManagerMutex);
                     m_PowerPreChangeClientId = clientId;
                     MIRACASTLOG_INFO("Registered as PowerModePreChange client [%u]", clientId);
                 }
@@ -1054,8 +1063,91 @@ namespace WPEFramework
         {
             MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR PreChange [%#04X] -> [%#04X] trxn[%d] stateChangeAfter[%d] ####",
                                 currentState, newState, transactionId, stateChangeAfter);
+            if ((WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == newState) ||
+                (WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF == newState))
+            {
+                // Reserve time before teardown or the monitor start; the monitor only extends it if teardown overruns.
+                requestPowerModeChangeDelay(transactionId, DEEP_SLEEP_TEARDOWN_BUDGET_SEC);
+                startPowerDelayMonitor(transactionId);
+            }
             // Session teardown can take seconds, so never block the PowerManager callback; the job acks on completion.
-            Core::IWorkerPool::Instance().Submit(PowerModeJob::Create(this, newState, transactionId, stateChangeAfter));
+            Core::IWorkerPool::Instance().Submit(PowerModeJob::Create(this, newState, transactionId));
+        }
+
+        void MiracastServiceImplementation::requestPowerModeChangeDelay(int transactionId, int delaySec)
+        {
+            lock_guard<mutex> lck(m_PowerManagerMutex);
+            if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
+            {
+                Core::hresult res = _powerManagerPlugin->DelayPowerModeChangeBy(m_PowerPreChangeClientId, transactionId, delaySec);
+                if (Core::ERROR_NONE != res)
+                {
+                    MIRACASTLOG_ERROR("DelayPowerModeChangeBy failed trxn[%d], ErrorCode [%#04X]", transactionId, res);
+                }
+                else
+                {
+                    MIRACASTLOG_INFO("DelayPowerModeChangeBy [%d]s requested trxn[%d]", delaySec, transactionId);
+                }
+            }
+        }
+
+        void MiracastServiceImplementation::startPowerDelayMonitor(int transactionId)
+        {
+            lock_guard<mutex> ctrl(m_PowerDelayMonitorCtrlMutex);
+            if (m_PowerDelayMonitorThread.joinable())
+            {
+                {
+                    lock_guard<mutex> lk(m_PowerDelayMonitorMutex);
+                    m_PowerDelayMonitorDone = true;
+                }
+                m_PowerDelayMonitorCv.notify_all();
+                m_PowerDelayMonitorThread.join();
+            }
+            {
+                lock_guard<mutex> lk(m_PowerDelayMonitorMutex);
+                m_PowerDelayMonitorDone = false;
+            }
+            m_PowerDelayMonitorTransactionId = transactionId;
+            m_PowerDelayMonitorThread = std::thread(&MiracastServiceImplementation::powerDelayMonitor, this, transactionId);
+        }
+
+        void MiracastServiceImplementation::stopPowerDelayMonitor(int transactionId, bool force)
+        {
+            lock_guard<mutex> ctrl(m_PowerDelayMonitorCtrlMutex);
+            if (!m_PowerDelayMonitorThread.joinable() || (!force && (transactionId != m_PowerDelayMonitorTransactionId)))
+            {
+                return;
+            }
+            {
+                lock_guard<mutex> lk(m_PowerDelayMonitorMutex);
+                m_PowerDelayMonitorDone = true;
+            }
+            m_PowerDelayMonitorCv.notify_all();
+            m_PowerDelayMonitorThread.join();
+        }
+
+        void MiracastServiceImplementation::powerDelayMonitor(int transactionId)
+        {
+            const auto start = std::chrono::steady_clock::now();
+            int reservedSec = DEEP_SLEEP_TEARDOWN_BUDGET_SEC;
+            unique_lock<mutex> lk(m_PowerDelayMonitorMutex);
+            // Wake only just before the current reservation expires, so a fast teardown never requests an extension.
+            while (!m_PowerDelayMonitorCv.wait_until(lk, start + std::chrono::seconds(reservedSec - DEEP_SLEEP_DELAY_RENEW_MARGIN_SEC), [this] { return m_PowerDelayMonitorDone; }))
+            {
+                if (reservedSec >= DEEP_SLEEP_MAX_DELAY_SEC)
+                {
+                    MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK-PWR Teardown exceeded [%d]s, no further delay requested trxn[%d] ####", DEEP_SLEEP_MAX_DELAY_SEC, transactionId);
+                    break;
+                }
+                const int extensionSec = std::min(DEEP_SLEEP_DELAY_EXTENSION_SEC, DEEP_SLEEP_MAX_DELAY_SEC - reservedSec);
+                MIRACASTLOG_WARNING("#### MCAST-TRIAGE-NOK-PWR Teardown still in progress after [%d]s, extending by [%d]s trxn[%d] ####",
+                                    reservedSec - DEEP_SLEEP_DELAY_RENEW_MARGIN_SEC, extensionSec, transactionId);
+                lk.unlock();
+                // The delay is measured from now, so include the margin still left on the current reservation.
+                requestPowerModeChangeDelay(transactionId, DEEP_SLEEP_DELAY_RENEW_MARGIN_SEC + extensionSec);
+                lk.lock();
+                reservedSec += extensionSec;
+            }
         }
 
         void MiracastServiceImplementation::stopActivePlayerSession(void)
@@ -1161,7 +1253,7 @@ namespace WPEFramework
             return pwrStateStr;
         }
 
-        void MiracastServiceImplementation::setPowerStateInternal(PowerState pwrState, bool isPreChange, int transactionId, int stateChangeAfter)
+        void MiracastServiceImplementation::setPowerStateInternal(PowerState pwrState, bool isPreChange, int transactionId)
         {
             MIRACASTLOG_TRACE("Entering ...");
             lock_guard<mutex> transitionLock(m_PowerTransitionMutex);
@@ -1205,14 +1297,6 @@ namespace WPEFramework
             {
                 if (!m_IsDeepSleepInProgress.exchange(true))
                 {
-                    if (isPreChange && (stateChangeAfter < DEEP_SLEEP_TEARDOWN_BUDGET_SEC))
-                    {
-                        lock_guard<mutex> lck(m_DiscoveryStateMutex);
-                        if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
-                        {
-                            _powerManagerPlugin->DelayPowerModeChangeBy(m_PowerPreChangeClientId, transactionId, DEEP_SLEEP_TEARDOWN_BUDGET_SEC);
-                        }
-                    }
                     // Must be released outside m_DiscoveryStateMutex: its event thread may be blocked on that mutex.
                     releaseWiFiPlugin();
                     // Stop casting first so the source receives an RTSP TEARDOWN while the P2P link is still up.
@@ -1248,7 +1332,8 @@ namespace WPEFramework
 
             if (isPreChange)
             {
-                lock_guard<mutex> lck(m_DiscoveryStateMutex);
+                stopPowerDelayMonitor(transactionId);
+                lock_guard<mutex> lck(m_PowerManagerMutex);
                 if (_powerManagerPlugin && (0 != m_PowerPreChangeClientId))
                 {
                     Core::hresult res = _powerManagerPlugin->PowerModePreChangeComplete(m_PowerPreChangeClientId, transactionId);
