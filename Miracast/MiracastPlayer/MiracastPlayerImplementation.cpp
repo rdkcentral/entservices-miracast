@@ -297,8 +297,8 @@ namespace WPEFramework
 
                 rtsp_hldr_msgq_data.videorect = m_video_sink_rect;
 
-                m_miracast_rtsp_obj->send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
-                isSuccessOrFailure = true;
+                isSuccessOrFailure = (nullptr != m_miracast_rtsp_obj) &&
+                    m_miracast_rtsp_obj->queueStartRequest(rtsp_hldr_msgq_data);
             }
             result.success = isSuccessOrFailure;
             MIRACASTLOG_TRACE("Exiting ...");
@@ -307,7 +307,6 @@ namespace WPEFramework
 
         Core::hresult MiracastPlayerImplementation::StopRequest(const string &clientMac , const string &clientName , const int reasonCode , Result &result )
         {
-            RTSP_HLDR_MSGQ_STRUCT rtsp_hldr_msgq_data = {0};
             bool isSuccessOrFailure = true;
             MiracastPlayerStopReasonCode stopReasonCode = static_cast<MiracastPlayerStopReasonCode>(reasonCode);
 
@@ -318,11 +317,8 @@ namespace WPEFramework
                 case STOP_REASON_APP_REQ_FOR_EXIT:
                 case STOP_REASON_APP_REQ_FOR_NEW_CONNECTION:
                 {
-                    rtsp_hldr_msgq_data.stop_reason_code = stopReasonCode;
-
-                    rtsp_hldr_msgq_data.state = RTSP_TEARDOWN_FROM_SINK2SRC;
-                    m_miracast_rtsp_obj->send_msgto_rtsp_msg_hdler_thread(rtsp_hldr_msgq_data);
-                    isSuccessOrFailure = true;
+                    isSuccessOrFailure = (nullptr != m_miracast_rtsp_obj) &&
+                        m_miracast_rtsp_obj->queueStopRequest(stopReasonCode);
                 }
                 break;
                 default:
