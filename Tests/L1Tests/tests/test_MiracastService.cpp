@@ -2059,13 +2059,28 @@ TEST_F(MiracastServiceEventTest, powerStateChange)
 
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
-    sleep(5);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
+	// Power transitions are processed asynchronously on the worker pool, so allow each one to complete.
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 1, 1);
+	sleep(3);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, 2, 1);
+	sleep(5);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 3, 1);
+	// A repeated pre-change for an already-handled transition must be a no-op.
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 4, 1);
+	sleep(3);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": false}"), response));
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, 5, 1);
+	sleep(3);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
+	// Deep sleep -> STANDBY and OFF -> LIGHT_SLEEP must also resume.
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, 6, 1);
+	sleep(3);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY, 7, 1);
+	sleep(3);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY, WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF, 8, 1);
+	sleep(3);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModePreChange(WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP, 9, 1);
+	sleep(3);
 	plugin->Deinitialize(nullptr);
 
 	removeEntryFromFile("/etc/device.properties","WIFI_P2P_CTRL_INTERFACE=p2p0");

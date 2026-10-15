@@ -1247,6 +1247,11 @@ void MiracastController::Controller_Thread(void *args)
                             MIRACASTLOG_INFO("CONTROLLER_STOP_DISCOVERING Received\n");
                             stop_session(false);
                             m_start_discovering_enabled = false;
+                            {
+                                std::lock_guard<std::mutex> lock(m_stop_discovery_mutex);
+                                ++m_stop_discovery_processed;
+                            }
+                            m_stop_discovery_cv.notify_all();
                             sleep(2);
                         }
                         else
@@ -1371,7 +1376,17 @@ void MiracastController::send_thundermsg_to_controller_thread(CONTROLLER_MSGQ_ST
     {
         MIRACASTLOG_INFO("Msg to Controller Action[%#08X]", controller_msgq_data.state);
         controller_msgq_data.msg_type = CONTRLR_FW_MSG;
-        m_controller_thread->send_message(&controller_msgq_data, CONTROLLER_MSGQ_SIZE);
+        if (CONTROLLER_STOP_DISCOVERING == controller_msgq_data.state)
+        {
+            // Count and post under the same lock so the queue order matches the counter order.
+            std::lock_guard<std::mutex> lock(m_stop_discovery_mutex);
+            ++m_stop_discovery_posted;
+            m_controller_thread->send_message(&controller_msgq_data, CONTROLLER_MSGQ_SIZE);
+        }
+        else
+        {
+            m_controller_thread->send_message(&controller_msgq_data, CONTROLLER_MSGQ_SIZE);
+        }
     }
     MIRACASTLOG_TRACE("Exiting...");
 }
@@ -1498,6 +1513,25 @@ void MiracastController::stop_discoveryAsync(void)
     controller_msgq_data.state = CONTROLLER_STOP_DISCOVERING;
     send_thundermsg_to_controller_thread(controller_msgq_data);
     MIRACASTLOG_TRACE("Exiting...");
+}
+
+bool MiracastController::stop_discoveryAndWait(uint32_t timeout_ms)
+{
+    MIRACASTLOG_TRACE("Entering...");
+    if (nullptr == m_controller_thread)
+    {
+        MIRACASTLOG_ERROR("Controller thread not available");
+        return false;
+    }
+    stop_discoveryAsync();
+
+    std::unique_lock<std::mutex> lock(m_stop_discovery_mutex);
+    const uint64_t target = m_stop_discovery_posted;
+    bool completed = m_stop_discovery_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms),
+                                                   [this, target] { return m_stop_discovery_processed >= target; });
+    MIRACASTLOG_INFO("MIRACAST_SERVICE_WFD_STOP %s", completed ? "completed" : "timed out");
+    MIRACASTLOG_TRACE("Exiting...");
+    return completed;
 }
 
 void MiracastController::restart_discoveryAsync(void)
