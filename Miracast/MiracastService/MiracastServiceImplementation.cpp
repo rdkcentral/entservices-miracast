@@ -25,7 +25,7 @@
 
 #include "UtilsSynchroIarm.hpp"
 
-using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
+using PowerState = Thunder::Exchange::IPowerManager::PowerState;
 
 #define MIRACAST_DEVICE_PROPERTIES_FILE "/etc/device.properties"
 #define SERVER_DETAILS "127.0.0.1:9998"
@@ -36,11 +36,11 @@ using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
 #define SECURITY_TOKEN_LEN_MAX 1024
 #define THUNDER_RPC_TIMEOUT 2000
 
-static PowerState m_powerState = WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY;
+static PowerState m_powerState = Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY;
 static bool m_IsTransitionFromDeepSleep = false;
 static bool m_IsWiFiConnectingState = false;
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -204,7 +204,7 @@ namespace WPEFramework
 
                 string query = "token=" + token;
                 Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), (_T(SERVER_DETAILS)));
-                m_WiFiPluginObj = new WPEFramework::JSONRPC::LinkType<Core::JSON::IElement>(_T(WIFI_CALLSIGN_VER), (_T("MiracastService")), false, query);
+                m_WiFiPluginObj = new Thunder::JSONRPC::LinkType<Core::JSON::IElement>(_T(WIFI_CALLSIGN_VER), (_T("MiracastService")), false, query);
                 if (nullptr == m_WiFiPluginObj)
                 {
                     MIRACASTLOG_ERROR("JSONRPC: %s: initialization failed", WIFI_CALLSIGN_VER);
@@ -311,7 +311,7 @@ namespace WPEFramework
                     string clientMac = "";
                     string clientName = "";
                     string reasonCodeStr = "";
-                    MiracastServiceReasonCode reason = WPEFramework::Exchange::IMiracastService::REASON_CODE_SUCCESS;
+                    MiracastServiceReasonCode reason = Thunder::Exchange::IMiracastService::REASON_CODE_SUCCESS;
 
                     if (!(params.HasLabel("source_dev_mac") && !(clientMac = params["source_dev_mac"].String()).empty()))
                     {
@@ -726,18 +726,18 @@ namespace WPEFramework
             bool restart_discovery_needed = false;
             switch (playerState)
             {
-                case WPEFramework::Exchange::IMiracastService::PLAYER_STATE_IDLE:
-                case WPEFramework::Exchange::IMiracastService::PLAYER_STATE_INITIATED:
-                case WPEFramework::Exchange::IMiracastService::PLAYER_STATE_INPROGRESS:
-                case WPEFramework::Exchange::IMiracastService::PLAYER_STATE_PLAYING:
-                case WPEFramework::Exchange::IMiracastService::PLAYER_STATE_STOPPED:
+                case Thunder::Exchange::IMiracastService::PLAYER_STATE_IDLE:
+                case Thunder::Exchange::IMiracastService::PLAYER_STATE_INITIATED:
+                case Thunder::Exchange::IMiracastService::PLAYER_STATE_INPROGRESS:
+                case Thunder::Exchange::IMiracastService::PLAYER_STATE_PLAYING:
+                case Thunder::Exchange::IMiracastService::PLAYER_STATE_STOPPED:
                 {
                     MIRACASTLOG_INFO("#### clientMac[%s] playerState[%d] reasonCode[%d] ####", clientMac.c_str(), (int)playerState, (int)reasonCode);
 
-                    if (WPEFramework::Exchange::IMiracastService::PLAYER_STATE_STOPPED == playerState)
+                    if (Thunder::Exchange::IMiracastService::PLAYER_STATE_STOPPED == playerState)
                     {
                         MiracastPlayerReasonCode playerReasonCode = static_cast<MiracastPlayerReasonCode>(reasonCode);
-                        if (WPEFramework::Exchange::IMiracastService::PLAYER_REASON_CODE_NEW_SRC_DEV_CONNECT_REQ == playerReasonCode )
+                        if (Thunder::Exchange::IMiracastService::PLAYER_REASON_CODE_NEW_SRC_DEV_CONNECT_REQ == playerReasonCode )
                         {
                             MIRACASTLOG_INFO("!!! STOPPED RECEIVED FOR NEW CONECTION !!!");
                             m_miracast_ctrler_obj->flush_current_session();
@@ -745,11 +745,11 @@ namespace WPEFramework
                         else
                         {
                             restart_discovery_needed = true;
-                            if ( WPEFramework::Exchange::IMiracastService::PLAYER_REASON_CODE_APP_REQ_TO_STOP == playerReasonCode )
+                            if ( Thunder::Exchange::IMiracastService::PLAYER_REASON_CODE_APP_REQ_TO_STOP == playerReasonCode )
                             {
                                 MIRACASTLOG_INFO("!!! STOPPED RECEIVED FOR ON EXIT !!!");
                             }
-                            else if ( WPEFramework::Exchange::IMiracastService::PLAYER_REASON_CODE_SRC_DEV_REQ_TO_STOP == playerReasonCode )
+                            else if ( Thunder::Exchange::IMiracastService::PLAYER_REASON_CODE_SRC_DEV_REQ_TO_STOP == playerReasonCode )
                             {
                                 MIRACASTLOG_INFO("!!! SRC DEV TEARDOWN THE CONNECTION !!!");
                             }
@@ -823,7 +823,7 @@ namespace WPEFramework
                 if ( is_another_connect_request )
                 {
                     MIRACASTLOG_INFO("!!! NEED TO STOP ONGOING SESSION !!!");
-                    strncpy(commandBuffer,"curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.stopRequest\", \"params\":{\"reason\": \"NEW_CONNECTION\"}}' http://127.0.0.1:9998/jsonrpc &",sizeof(commandBuffer));
+                    strncpy(commandBuffer,"curl -H \"Authorization: Bearer `ThunderSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.stopRequest\", \"params\":{\"reason\": \"NEW_CONNECTION\"}}' http://127.0.0.1:9998/jsonrpc &",sizeof(commandBuffer));
                     commandBuffer[sizeof(commandBuffer) - 1] = '\0';
                     MIRACASTLOG_INFO("Stopping old Session by [%s]",commandBuffer);
                     MiracastCommon::execute_SystemCommand(commandBuffer);
@@ -837,7 +837,7 @@ namespace WPEFramework
                     changeServiceState(MIRACAST_SERVICE_STATE_CONNECTING);
                 }
                 memset(commandBuffer,0x00,sizeof(commandBuffer));
-                strncpy(commandBuffer,"curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.acceptClientConnection\", \"params\":{\"requestStatus\": \"Accept\"}}' http://127.0.0.1:9998/jsonrpc &",sizeof(commandBuffer));
+                strncpy(commandBuffer,"curl -H \"Authorization: Bearer `ThunderSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.acceptClientConnection\", \"params\":{\"requestStatus\": \"Accept\"}}' http://127.0.0.1:9998/jsonrpc &",sizeof(commandBuffer));
                 commandBuffer[sizeof(commandBuffer) - 1] = '\0';
                 MIRACASTLOG_INFO("AutoConnecting [%s - %s] by [%s]",client_name.c_str(),client_mac.c_str(),commandBuffer);
                 MiracastCommon::execute_SystemCommand(commandBuffer);
@@ -916,7 +916,7 @@ namespace WPEFramework
                     char commandBuffer[768] = {0};
                     snprintf( commandBuffer,
                             sizeof(commandBuffer),
-                            "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",
+                            "curl -H \"Authorization: Bearer `ThunderSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastPlayer.1.playRequest\", \"params\":{\"device_parameters\": {\"source_dev_ip\": \"%s\",\"source_dev_mac\": \"%s\",\"source_dev_name\": \"%s\",\"sink_dev_ip\": \"%s\"},\"video_rectangle\": {\"X\": 0,\"Y\": 0,\"W\": 1280,\"H\": 720}}}' http://127.0.0.1:9998/jsonrpc &",
                             src_dev_ip.c_str(),
                             src_dev_mac.c_str(),
                             src_dev_name.c_str(),
@@ -1009,8 +1009,8 @@ namespace WPEFramework
         {
             MIRACASTLOG_TRACE("Entering ...");
             Core::hresult res = Core::ERROR_GENERAL;
-            PowerState pwrStateCur = WPEFramework::Exchange::IPowerManager::POWER_STATE_UNKNOWN;
-            PowerState pwrStatePrev = WPEFramework::Exchange::IPowerManager::POWER_STATE_UNKNOWN;
+            PowerState pwrStateCur = Thunder::Exchange::IPowerManager::POWER_STATE_UNKNOWN;
+            PowerState pwrStatePrev = Thunder::Exchange::IPowerManager::POWER_STATE_UNKNOWN;
 
             MIRACASTLOG_INFO("Initializing Power State");
             ASSERT (_powerManagerPlugin);
@@ -1035,11 +1035,11 @@ namespace WPEFramework
             std::string pwrStateStr = "";
             switch (pwrState) 
             {
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_ON: pwrStateStr = "ON"; break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_OFF: pwrStateStr = "OFF"; break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY: pwrStateStr = "LIGHT_SLEEP"; break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP: pwrStateStr = "LIGHT_SLEEP"; break;
-                case WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP: pwrStateStr = "DEEP_SLEEP"; break;
+                case Thunder::Exchange::IPowerManager::POWER_STATE_ON: pwrStateStr = "ON"; break;
+                case Thunder::Exchange::IPowerManager::POWER_STATE_OFF: pwrStateStr = "OFF"; break;
+                case Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY: pwrStateStr = "LIGHT_SLEEP"; break;
+                case Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_LIGHT_SLEEP: pwrStateStr = "LIGHT_SLEEP"; break;
+                case Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP: pwrStateStr = "DEEP_SLEEP"; break;
                 default: pwrStateStr = "UNKNOWN"; break;
             }
             MIRACASTLOG_INFO("Power State[%#04X - %s]",pwrState ,pwrStateStr.c_str());
@@ -1055,7 +1055,7 @@ namespace WPEFramework
             MIRACASTLOG_INFO("changing power state [%s] -> [%s]",
                                 getPowerStateString(old_pwr_state).c_str(),
                                 getPowerStateString(new_pwr_state).c_str());
-            if (WPEFramework::Exchange::IPowerManager::POWER_STATE_ON == pwrState)
+            if (Thunder::Exchange::IPowerManager::POWER_STATE_ON == pwrState)
             {
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
                 if ((m_IsTransitionFromDeepSleep) && (_instance->m_isServiceEnabled))
@@ -1069,7 +1069,7 @@ namespace WPEFramework
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-PWR Miracast discovery already Disabled [%d]. No need to enable it",_instance->m_isServiceEnabled);
                 }
             }
-            else if (WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState)
+            else if (Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP == pwrState)
             {
                 lock_guard<recursive_mutex> lock(_instance->m_EventMutex);
                 if ( _instance->m_isServiceEnabled )
@@ -1094,7 +1094,7 @@ namespace WPEFramework
         {
             if (nullptr == _systemServicesPlugin)
             {
-                _systemServicesPlugin = service->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
+                _systemServicesPlugin = service->QueryInterfaceByCallsign<Thunder::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
                 if (_systemServicesPlugin != nullptr)
                 {
                     registerSystemEventHandlers();
@@ -1302,4 +1302,4 @@ namespace WPEFramework
         /*  Internal Timer Callback and methods End */
         /* ------------------------------------------------------------------------------------------------------- */
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

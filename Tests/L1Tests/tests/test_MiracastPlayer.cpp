@@ -37,7 +37,7 @@
 #include <future>
 #include <thread>
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 using ::testing::NiceMock;
 namespace {

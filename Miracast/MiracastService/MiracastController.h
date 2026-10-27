@@ -41,9 +41,9 @@
 
 using namespace std;
 using namespace MIRACAST;
-using namespace WPEFramework;
-using MiracastServiceReasonCode = WPEFramework::Exchange::IMiracastService::ReasonCode;
-using MiracastPlayerState = WPEFramework::Exchange::IMiracastService::PlayerState;
+using namespace Thunder;
+using MiracastServiceReasonCode = Thunder::Exchange::IMiracastService::ReasonCode;
+using MiracastPlayerState = Thunder::Exchange::IMiracastService::PlayerState;
 
 #define THUNDER_REQ_THREAD_CLIENT_CONNECTION_WAITTIME (30)
 #define MAX_IFACE_NAME_LEN 16

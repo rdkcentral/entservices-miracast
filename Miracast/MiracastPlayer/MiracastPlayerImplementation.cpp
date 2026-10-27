@@ -27,7 +27,7 @@
 
 static std::vector<std::string> m_envArgs;
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -135,15 +135,15 @@ namespace WPEFramework
             MIRACASTLOG_INFO("MiracastPlayer state [%#08X]", e);
             switch (e)
             {
-                case WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE:
+                case Thunder::Exchange::IMiracastPlayer::STATE_IDLE:
                     return "IDLE";
-                case WPEFramework::Exchange::IMiracastPlayer::STATE_INITIATED:
+                case Thunder::Exchange::IMiracastPlayer::STATE_INITIATED:
                     return "INITIATED";
-                case WPEFramework::Exchange::IMiracastPlayer::STATE_INPROGRESS:
+                case Thunder::Exchange::IMiracastPlayer::STATE_INPROGRESS:
                     return "INPROGRESS";
-                case WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING:
+                case Thunder::Exchange::IMiracastPlayer::STATE_PLAYING:
                     return "PLAYING";
-                case WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED:
+                case Thunder::Exchange::IMiracastPlayer::STATE_STOPPED:
                     return "STOPPED";
                 default:
                     return "Unimplemented state";
@@ -563,7 +563,7 @@ namespace WPEFramework
                 char commandBuffer[768] = {0};
                 snprintf( commandBuffer,
                         sizeof(commandBuffer),
-                        "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
+                        "curl -H \"Authorization: Bearer `ThunderSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
                         client_mac.c_str(),
                         stateDescription(player_state).c_str(),
                         std::to_string(reason_code).c_str());
@@ -575,7 +575,7 @@ namespace WPEFramework
                 dispatchEvent(MIRACASTPLAYER_EVENT_ON_STATE_CHANGE, tupleParam);
             }
 
-            if ( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED == player_state )
+            if ( Thunder::Exchange::IMiracastPlayer::STATE_STOPPED == player_state )
             {
                 unsetEnvArgumentsInternal();
             }
@@ -584,4 +584,4 @@ namespace WPEFramework
         /*  Events End */
         /* ------------------------------------------------------------------------------------------------------- */
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

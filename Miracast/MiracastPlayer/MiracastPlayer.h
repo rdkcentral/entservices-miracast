@@ -28,7 +28,7 @@
 #include "tracing/Logging.h"
 #include <mutex>
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -113,4 +113,4 @@ namespace WPEFramework
                 static MiracastPlayer* _instance;
         }; // class MiracastPlayer
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

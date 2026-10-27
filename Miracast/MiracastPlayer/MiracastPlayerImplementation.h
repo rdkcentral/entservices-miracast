@@ -35,13 +35,13 @@
 
 #include "libIBus.h"
 
-using namespace WPEFramework;
+using namespace Thunder;
 
-using MiracastPlayerState = WPEFramework::Exchange::IMiracastPlayer::State;
-using MiracastPlayerReasonCode = WPEFramework::Exchange::IMiracastPlayer::ReasonCode;
+using MiracastPlayerState = Thunder::Exchange::IMiracastPlayer::State;
+using MiracastPlayerReasonCode = Thunder::Exchange::IMiracastPlayer::ReasonCode;
 using ParamsType = boost::variant<std::tuple<std::string, std::string, MiracastPlayerState, MiracastPlayerReasonCode>>;
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -150,4 +150,4 @@ namespace WPEFramework
             friend class Job;
         };
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

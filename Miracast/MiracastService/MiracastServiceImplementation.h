@@ -39,11 +39,11 @@
 
 #include "PowerManagerInterface.h"
 
-using namespace WPEFramework;
-using PowerState = WPEFramework::Exchange::IPowerManager::PowerState;
-using MiracastPlayerState = WPEFramework::Exchange::IMiracastService::PlayerState;
-using MiracastPlayerReasonCode = WPEFramework::Exchange::IMiracastService::PlayerReasonCode;
-using MiracastServiceReasonCode = WPEFramework::Exchange::IMiracastService::ReasonCode;
+using namespace Thunder;
+using PowerState = Thunder::Exchange::IPowerManager::PowerState;
+using MiracastPlayerState = Thunder::Exchange::IMiracastService::PlayerState;
+using MiracastPlayerReasonCode = Thunder::Exchange::IMiracastService::PlayerReasonCode;
+using MiracastServiceReasonCode = Thunder::Exchange::IMiracastService::ReasonCode;
 
 typedef enum DeviceWiFiStates
 {
@@ -56,7 +56,7 @@ typedef enum DeviceWiFiStates
     DEVICE_WIFI_STATE_FAILED = 6
 }DEVICE_WIFI_STATES;
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {		
@@ -221,7 +221,7 @@ namespace WPEFramework
                 std::string m_src_dev_mac{""};
                 std::string m_src_dev_name{""};
                 std::string m_sink_dev_ip{""};
-                WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement> *m_WiFiPluginObj = nullptr;
+                Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement> *m_WiFiPluginObj = nullptr;
                 std::list<Exchange::IMiracastService::INotification *> _miracastServiceNotification; // List of registered notifications
                 PluginHost::IShell *m_CurrentService;
                 guint m_FriendlyNameMonitorTimerID{0};
@@ -277,4 +277,4 @@ namespace WPEFramework
                 friend class Job;
         }; // class MiracastServiceImplementation
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

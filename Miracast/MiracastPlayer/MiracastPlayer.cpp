@@ -19,9 +19,9 @@
 
 #include "MiracastPlayer.h"
 
-const string WPEFramework::Plugin::MiracastPlayer::SERVICE_NAME = "org.rdk.MiracastPlayer";
+const string Thunder::Plugin::MiracastPlayer::SERVICE_NAME = "org.rdk.MiracastPlayer";
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace
     {
@@ -96,7 +96,7 @@ namespace WPEFramework
                         {
                             /* Register for notifications */
                             mMiracastPlayerImpl->Register(&mMiracastPlayerNotification);
-                            /* Invoking Plugin API register to wpeframework */
+                            /* Invoking Plugin API register to thunder */
                             Exchange::JMiracastPlayer::Register(*this, mMiracastPlayerImpl);
                         }
                        
@@ -202,4 +202,4 @@ namespace WPEFramework
             }
         }
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

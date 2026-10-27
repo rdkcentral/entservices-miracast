@@ -2,7 +2,7 @@
 
 ## Overall System Architecture
 
-The Miracast system is designed as a modular, plugin-based wireless display streaming solution built on the WPEFramework (Thunder). The architecture consists of two primary plugins:
+The Miracast system is designed as a modular, plugin-based wireless display streaming solution built on the Thunder. The architecture consists of two primary plugins:
 
 - **MiracastService**: Orchestrates device discovery, connection management, and session control
 - **MiracastPlayer**: Handles media streaming, RTSP negotiation, and playback using GStreamer
@@ -45,7 +45,7 @@ GStreamer Pipeline Creation → Media Stream Processing → Display Output
 
 ## Plugin Framework Integration
 
-### WPEFramework Plugin Architecture
+### Thunder Plugin Architecture
 - Plugins implement `PluginHost::IPlugin` interface for lifecycle management
 - JSON-RPC communication via `PluginHost::JSONRPC` inheritance
 - Event notification system using `INotification` interfaces
@@ -66,7 +66,7 @@ GStreamer Pipeline Creation → Media Stream Processing → Display Output
 ## Dependencies & Interfaces
 
 ### External Dependencies
-- **WPEFramework**: Core plugin framework and JSON-RPC infrastructure
+- **Thunder**: Core plugin framework and JSON-RPC infrastructure
 - **GStreamer**: Multimedia framework for stream processing
 - **GLib**: Core utilities and event loop management
 - **WPA Supplicant**: Wi-Fi Direct P2P operations

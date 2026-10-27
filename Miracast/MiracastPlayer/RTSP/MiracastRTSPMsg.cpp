@@ -196,7 +196,7 @@ MiracastRTSPMsg::MiracastRTSPMsg()
     m_epollfd = -1;
     m_streaming_started = false;
     m_player_notify_handler = nullptr;
-    m_current_state = WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE;
+    m_current_state = Thunder::Exchange::IMiracastPlayer::STATE_IDLE;
     m_current_wait_time_ms = 0;
     m_rtsp_msg_hldr_running_state = false;
 
@@ -804,7 +804,7 @@ void MiracastRTSPMsg::set_state( MiracastPlayerState state , bool send_notificat
     MIRACASTLOG_INFO("Entering [%d]notify[%u]reason[%u]...",state,send_notification,reason_code);
     m_current_state = state;
 
-    if ( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED == state )
+    if ( Thunder::Exchange::IMiracastPlayer::STATE_STOPPED == state )
 	{
         stop_streaming(state);
     }
@@ -1608,7 +1608,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_request_ack(std::string rtsp_
     }
     else
     {
-        if ( WPEFramework::Exchange::IMiracastPlayer::STATE_INPROGRESS == get_state())
+        if ( Thunder::Exchange::IMiracastPlayer::STATE_INPROGRESS == get_state())
         {
             // It denotes response for M7 has received.
             status_code = RTSP_M1_M7_MSG_EXCHANGE_RECEIVED;
@@ -1651,7 +1651,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_method_request(std::string rt
         else if (rtsp_msg_buffer.find(play_tag) != std::string::npos)
         {
             MIRACASTLOG_INFO("PLAY request from Source received");
-            if ( WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING == get_state())
+            if ( Thunder::Exchange::IMiracastPlayer::STATE_PLAYING == get_state())
             {
                 error_code = RTSP_ERRORCODE_METHOD_NOT_VALID;
             }
@@ -1659,7 +1659,7 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_trigger_method_request(std::string rt
         else if (rtsp_msg_buffer.find(pause_tag) != std::string::npos)
         {
             MIRACASTLOG_INFO("PAUSE request from Source received");
-            if ( WPEFramework::Exchange::IMiracastPlayer::STATE_PAUSED == get_state()){
+            if ( Thunder::Exchange::IMiracastPlayer::STATE_PAUSED == get_state()){
                 error_code = RTSP_ERRORCODE_METHOD_NOT_VALID;
             }
         }
@@ -1920,7 +1920,7 @@ MiracastError MiracastRTSPMsg::start_streaming( VIDEO_RECT_STRUCT video_rect )
     if (!opt_flag_buffer.empty())
     {
         MIRACASTLOG_INFO("#### updating state as PLAYING ####");
-        set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING , true );
+        set_state(Thunder::Exchange::IMiracastPlayer::STATE_PLAYING , true );
     }
 
     if (mcgstfile.is_open())
@@ -1966,7 +1966,7 @@ MiracastError MiracastRTSPMsg::stop_streaming( MiracastPlayerState state )
 {
     MIRACASTLOG_TRACE("Entering...");
 
-    if ( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED == state )
+    if ( Thunder::Exchange::IMiracastPlayer::STATE_STOPPED == state )
     {
         if (m_streaming_started)
         {
@@ -2005,7 +2005,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
     RTSP_HLDR_MSGQ_STRUCT rtsp_message_data = {};
     VIDEO_RECT_STRUCT     video_rect_st = {0};
     RTSP_STATUS status_code = RTSP_TIMEDOUT;
-    MiracastPlayerReasonCode reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
+    MiracastPlayerReasonCode reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
     std::string rtsp_msg_buffer;
     std::string client_mac = "",
                 client_name = "",
@@ -2017,7 +2017,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
     MIRACASTLOG_TRACE("Entering...");
     while ((nullptr != m_rtsp_msg_handler_thread)&&(true == m_rtsp_msg_hldr_running_state))
     {
-        set_state( WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE );
+        set_state( Thunder::Exchange::IMiracastPlayer::STATE_IDLE );
         MIRACASTLOG_TRACE("Waiting for Event .....");
         m_rtsp_msg_handler_thread->receive_message(&rtsp_message_data, sizeof(rtsp_message_data), THREAD_RECV_MSG_INDEFINITE_WAIT);
 
@@ -2026,7 +2026,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
         if (RTSP_SELF_ABORT == rtsp_message_data.state)
         {
             MIRACASTLOG_INFO("RTSP_SELF_ABORT ACTION Received");
-            set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED);
+            set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED);
             break;
         }
 
@@ -2054,21 +2054,21 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
             video_rect_st.width = rtsp_message_data.videorect.width;
             video_rect_st.height = rtsp_message_data.videorect.height;
 
-            set_state( WPEFramework::Exchange::IMiracastPlayer::STATE_INITIATED , true );
+            set_state( Thunder::Exchange::IMiracastPlayer::STATE_INITIATED , true );
 
             if (MIRACAST_OK != initiate_TCP(rtsp_message_data.source_dev_ip))
             {
-                set_state( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR );
+                set_state( Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR );
                 continue;
             }
         }
         else
         {
-            set_state( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_INT_FAILURE );
+            set_state( Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , Thunder::Exchange::IMiracastPlayer::REASON_CODE_INT_FAILURE );
             MIRACASTLOG_ERROR("[%#04X] action received and not yet handled\n", rtsp_message_data.state);
             continue;
         }
-        set_state( WPEFramework::Exchange::IMiracastPlayer::STATE_INPROGRESS , true );
+        set_state( Thunder::Exchange::IMiracastPlayer::STATE_INPROGRESS , true );
 
         set_wait_timeout(m_wfd_src_req_timeout);
 
@@ -2131,45 +2131,45 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
         {
             if (RTSP_INVALID_MSG_RECEIVED == status_code)
             {
-                reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
+                reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK INVALID RTSP MSG RECEIVED ####");
             }
             else if (RTSP_MSG_FAILURE == status_code)
             {
-                reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
+                reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_ERROR;
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK RTSP SENT/RECV FAILED ####");
             }
             else if ( RTSP_MSG_TEARDOWN_REQUEST == status_code )
             {
                 if ( STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code )
                 {
-                    reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
+                    reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-EXIT APP REQUESTED TO STOP ON EXIT ####");
                 }
                 else if ( STOP_REASON_APP_REQ_FOR_NEW_CONNECTION == rtsp_message_data.stop_reason_code )
                 {
-                    reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_NEW_SRC_DEV_CONNECT_REQ;
+                    reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_NEW_SRC_DEV_CONNECT_REQ;
                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-STOP-ON-NEW-CONNECT APP REQUESTED TO STOP ON NEW CONNECTION ####");
                 }
             }
             else if ( RTSP_METHOD_NOT_SUPPORTED == status_code )
             {
-                reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_METHOD_NOT_SUPPORTED;
+                reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_METHOD_NOT_SUPPORTED;
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK RTSP METHOD NOT SUPPORTED ####");
             }
             else
             {
-                reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_RTSP_TIMEOUT;
+                reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_RTSP_TIMEOUT;
                 MIRACASTLOG_INFO("#### MCAST-TRIAGE-NOK RTSP RECV TIMEOUT ####");
             }
-            set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
+            set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
         }
 
         RTSP_STATUS socket_state;
         struct timespec start_time, current_time;
         int elapsed_seconds = 0;
 
-        reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_SRC_DEV_REQ_TO_STOP;
+        reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_SRC_DEV_REQ_TO_STOP;
 
         clock_gettime(CLOCK_REALTIME, &start_time);
 
@@ -2181,7 +2181,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
             if (elapsed_seconds > m_wfd_src_session_timeout)
             {
                 MIRACASTLOG_INFO("#### MCAST-TRIAGE-NOK RTSP M16 TIMEOUT[%d] ELAPSED[%d] ####",m_wfd_src_session_timeout,elapsed_seconds);
-                set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
+                set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
                 break;
             }
 
@@ -2222,13 +2222,13 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                     {
                         MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK RTSP SENT/RECV FAILED ####");
                     }
-                    set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
+                    set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
                     break;
                 }
             }
             else if (RTSP_MSG_FAILURE == socket_state)
             {
-                set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
+                set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
                 MIRACASTLOG_ERROR("#### MCAST-TRIAGE-NOK RTSP SEND/RECV FAILED ####");
                 break;
             }
@@ -2254,18 +2254,18 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                         {
                             MIRACASTLOG_INFO("[RTSP_SELF_ABORT] Received");
                             m_rtsp_msg_hldr_running_state = false;
-                            set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true );
+                            set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true );
                         }
                         else
                         {
                             if ( RTSP_PLAY_FROM_SINK2SRC == rtsp_message_data.state )
                             {
-                                set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING );
+                                set_state(Thunder::Exchange::IMiracastPlayer::STATE_PLAYING );
                                 MIRACASTLOG_INFO("[RTSP_PLAY] ACTION Received");
                             }
                             else if ( RTSP_PAUSE_FROM_SINK2SRC == rtsp_message_data.state )
                             {
-                                set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_PAUSED );
+                                set_state(Thunder::Exchange::IMiracastPlayer::STATE_PAUSED );
                                 MIRACASTLOG_INFO("[RTSP_PAUSE] ACTION Received");
                             }
                             else if ( RTSP_TEARDOWN_FROM_SINK2SRC == rtsp_message_data.state )
@@ -2276,19 +2276,19 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                         if ((RTSP_MSG_FAILURE == rtsp_sink2src_request_msg_handling(rtsp_message_data.state)) ||
                             (RTSP_TEARDOWN_FROM_SINK2SRC == rtsp_message_data.state))
                         {
-                            reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS;
+                            reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS;
                             start_monitor_keep_alive_msg = false;
 
                             if (RTSP_TEARDOWN_FROM_SINK2SRC == rtsp_message_data.state)
                             {
                                 if ( STOP_REASON_APP_REQ_FOR_EXIT == rtsp_message_data.stop_reason_code )
                                 {
-                                    reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
+                                    reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_APP_REQ_TO_STOP;
                                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-EXIT APP REQUESTED TO STOP ON EXIT ####");
                                 }
                                 else if ( STOP_REASON_APP_REQ_FOR_NEW_CONNECTION == rtsp_message_data.stop_reason_code )
                                 {
-                                    reason = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_NEW_SRC_DEV_CONNECT_REQ;
+                                    reason = Thunder::Exchange::IMiracastPlayer::REASON_CODE_NEW_SRC_DEV_CONNECT_REQ;
                                     MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-APP-STOP-ON-NEW-CONNECT APP REQUESTED TO STOP ON NEW CONNECTION ####");
                                 }
                                 else
@@ -2300,7 +2300,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                             {
                                 MIRACASTLOG_ERROR("!!! INVALID ACTION RECEIVED [%#04X] !!!",rtsp_message_data.state);
                             }
-                            set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
+                            set_state(Thunder::Exchange::IMiracastPlayer::STATE_STOPPED , true , reason );
                         }
                     }
                     break;
@@ -2322,8 +2322,8 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                     break;
                     case RTSP_NOTIFY_GSTPLAYER_STATE:
                     {
-                        MiracastPlayerState state = WPEFramework::Exchange::IMiracastPlayer::STATE_IDLE;
-                        MiracastPlayerReasonCode reason_code = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS;
+                        MiracastPlayerState state = Thunder::Exchange::IMiracastPlayer::STATE_IDLE;
+                        MiracastPlayerReasonCode reason_code = Thunder::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS;
                         bool notifyGstPlayer = true;
                         MIRACASTLOG_INFO("!!! RTSP_NOTIFY_GSTPLAYER_STATE[%#08X] !!!",rtsp_message_data.gst_player_state);
 
@@ -2331,7 +2331,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                         {
                             case MIRACAST_GSTPLAYER_STATE_FIRST_VIDEO_FRAME_RECEIVED:
                             {
-                                state = WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING;
+                                state = Thunder::Exchange::IMiracastPlayer::STATE_PLAYING;
                                 MIRACASTLOG_INFO("#### MCAST-TRIAGE-OK-GST-PLAYING updating state as PLAYING ####");
                                 std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_skip_firstframe_callback");
                                 if (!opt_flag_buffer.empty())
@@ -2342,7 +2342,7 @@ void MiracastRTSPMsg::RTSPMessageHandler_Thread(void *args)
                             break;
                             case MIRACAST_GSTPLAYER_STATE_STOPPED:
                             {
-                                state = WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED;
+                                state = Thunder::Exchange::IMiracastPlayer::STATE_STOPPED;
                                 reason_code = rtsp_message_data.state_reason_code;
                                 rtsp_sink2src_request_msg_handling(RTSP_TEARDOWN_FROM_SINK2SRC);
                                 start_monitor_keep_alive_msg = false;

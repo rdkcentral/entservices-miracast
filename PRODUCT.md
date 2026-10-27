@@ -48,7 +48,7 @@
 
 ### Integration Benefits
 - **Standards Compliance**: Full Miracast specification implementation
-- **Framework Integration**: Native WPEFramework plugin architecture
+- **Framework Integration**: Native Thunder plugin architecture
 - **Scalable Design**: Support for multiple concurrent sessions
 - **Platform Independence**: Cross-platform compatibility through standardized interfaces
 - **Service Integration**: IARMBus connectivity for system-wide coordination

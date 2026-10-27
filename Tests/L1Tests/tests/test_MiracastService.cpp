@@ -37,7 +37,7 @@
 #include <sys/time.h>
 #include <future>
 
-using namespace WPEFramework;
+using namespace Thunder;
 using ::testing::NiceMock;
 namespace
 {
@@ -2059,12 +2059,12 @@ TEST_F(MiracastServiceEventTest, powerStateChange)
 
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 
-	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
+	Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Thunder::Exchange::IPowerManager::POWER_STATE_ON, Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
+    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, Thunder::Exchange::IPowerManager::POWER_STATE_ON);
     sleep(5);
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_ON, WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
+    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Thunder::Exchange::IPowerManager::POWER_STATE_ON, Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": false}"), response));
-    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(WPEFramework::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, WPEFramework::Exchange::IPowerManager::POWER_STATE_ON);
+    Plugin::MiracastServiceImplementation::_instance->onPowerModeChanged(Thunder::Exchange::IPowerManager::POWER_STATE_STANDBY_DEEP_SLEEP, Thunder::Exchange::IPowerManager::POWER_STATE_ON);
 	EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnable"), _T("{\"enabled\": true}"), response));
 	plugin->Deinitialize(nullptr);
 

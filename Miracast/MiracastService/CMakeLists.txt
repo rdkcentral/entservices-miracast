@@ -36,7 +36,7 @@ find_package(GLIB REQUIRED)
 find_package(${NAMESPACE}Plugins REQUIRED)
 find_package(${NAMESPACE}Definitions REQUIRED)
 find_package(CompileSettingsDebug CONFIG REQUIRED)
-find_package(WPEFrameworkSecurityUtil)
+find_package(${NAMESPACE}SecurityUtil)
 
 find_library(GLIB_LIBRARY NAMES glib-2.0 )
 

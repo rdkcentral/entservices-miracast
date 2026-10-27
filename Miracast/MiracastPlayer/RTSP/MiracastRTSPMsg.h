@@ -27,9 +27,9 @@
 #include <fcntl.h>
 #include <interfaces/IMiracastPlayer.h>
 
-using namespace WPEFramework;
-using MiracastPlayerState = WPEFramework::Exchange::IMiracastPlayer::State;
-using MiracastPlayerReasonCode = WPEFramework::Exchange::IMiracastPlayer::ReasonCode;
+using namespace Thunder;
+using MiracastPlayerState = Thunder::Exchange::IMiracastPlayer::State;
+using MiracastPlayerReasonCode = Thunder::Exchange::IMiracastPlayer::ReasonCode;
 
 #define MAX_EPOLL_EVENTS 64
 #define RTSP_REQUEST_RECV_TIMEOUT   ( 6 * ONE_SECOND_IN_MILLISEC )
@@ -509,7 +509,7 @@ class MiracastRTSPMsg
         MiracastError initiate_TCP(std::string goIP);
         MiracastError start_streaming( VIDEO_RECT_STRUCT video_rect );
         MiracastError stop_streaming( MiracastPlayerState state );
-        void set_state( MiracastPlayerState state , bool send_notification = false , MiracastPlayerReasonCode reason_code = WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS );
+        void set_state( MiracastPlayerState state , bool send_notification = false , MiracastPlayerReasonCode reason_code = Thunder::Exchange::IMiracastPlayer::REASON_CODE_SUCCESS );
         void store_srcsink_info( std::string client_name, std::string client_mac, std::string src_dev_ip, std::string sink_ip);
         MiracastError create_RTSPThread(void);
         void Release_SocketAndEpollDescriptor(void);

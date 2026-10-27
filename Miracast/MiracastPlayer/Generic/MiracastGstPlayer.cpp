@@ -495,7 +495,7 @@ gboolean MiracastGstPlayer::appendPipelineBusMessage(GstBus * bus, GstMessage * 
             g_free(info);
             GST_DEBUG_BIN_TO_DOT_FILE((GstBin *)self->m_append_pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "miracast_udpsrc2appsink_error");
             gst_element_set_state(self->m_append_pipeline, GST_STATE_READY);
-            self->notifyPlaybackState(MIRACAST_GSTPLAYER_STATE_STOPPED,WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_GST_ERROR);
+            self->notifyPlaybackState(MIRACAST_GSTPLAYER_STATE_STOPPED,Thunder::Exchange::IMiracastPlayer::REASON_CODE_GST_ERROR);
         }
         break;
         case GST_MESSAGE_STATE_CHANGED:
@@ -556,7 +556,7 @@ gboolean MiracastGstPlayer::playbinPipelineBusMessage (GstBus * bus, GstMessage 
                 g_free(info);
             }
             GST_DEBUG_BIN_TO_DOT_FILE((GstBin *)self->m_playbin_pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "miracast_playbin2appSrc_error");
-            self->notifyPlaybackState(MIRACAST_GSTPLAYER_STATE_STOPPED,WPEFramework::Exchange::IMiracastPlayer::REASON_CODE_GST_ERROR);
+            self->notifyPlaybackState(MIRACAST_GSTPLAYER_STATE_STOPPED,Thunder::Exchange::IMiracastPlayer::REASON_CODE_GST_ERROR);
         }
         break;
         case GST_MESSAGE_STATE_CHANGED:
