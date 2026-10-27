@@ -40,13 +40,7 @@ find_package(${NAMESPACE}SecurityUtil)
 
 find_library(GLIB_LIBRARY NAMES glib-2.0 )
 
-if (DEFINED THUNDER_VERSION AND THUNDER_VERSION LESS_EQUAL 4)
-    find_package(${NAMESPACE}COM REQUIRED)
-        set(MIRACAST_FRAMEWORK_LIBRARY ${NAMESPACE}COM::${NAMESPACE}COM)
-else ()
-    find_package(${NAMESPACE}Protocols REQUIRED)
-        set(MIRACAST_FRAMEWORK_LIBRARY ${NAMESPACE}Protocols::${NAMESPACE}Protocols)
-endif ()
+find_package(${NAMESPACE}COM REQUIRED)
 
 add_library(${MODULE_NAME} SHARED MiracastService.cpp Module.cpp)
 
@@ -71,7 +65,7 @@ set_target_properties(${PLUGIN_IMPLEMENTATION} PROPERTIES
         CXX_STANDARD_REQUIRED YES)
 set_source_files_properties(MiracastService.cpp PROPERTIES COMPILE_FLAGS "-fexceptions")
 
-target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${MIRACAST_FRAMEWORK_LIBRARY})
+target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${NAMESPACE}COM::${NAMESPACE}COM)
 
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ./)    
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ../common)
