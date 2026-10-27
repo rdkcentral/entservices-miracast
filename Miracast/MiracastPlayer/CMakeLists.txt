@@ -43,11 +43,13 @@ find_package(GStreamer REQUIRED)
 
 find_library(GLIB_LIBRARY NAMES glib-2.0 )
 
-if (USE_THUNDER_R4)
+if (DEFINED THUNDER_VERSION AND THUNDER_VERSION LESS_EQUAL 4)
     find_package(${NAMESPACE}COM REQUIRED)
+	set(MIRACAST_FRAMEWORK_LIBRARY ${NAMESPACE}COM::${NAMESPACE}COM)
 else ()
     find_package(${NAMESPACE}Protocols REQUIRED)
-endif (USE_THUNDER_R4)
+	set(MIRACAST_FRAMEWORK_LIBRARY ${NAMESPACE}Protocols::${NAMESPACE}Protocols)
+endif ()
 
 add_library(${MODULE_NAME} SHARED MiracastPlayer.cpp Module.cpp)
 
@@ -71,11 +73,7 @@ set_target_properties(${PLUGIN_IMPLEMENTATION} PROPERTIES
         CXX_STANDARD_REQUIRED YES)
 set_source_files_properties(MiracastPlayer.cpp PROPERTIES COMPILE_FLAGS "-fexceptions")
 
-if (USE_THUNDER_R4)
-target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${NAMESPACE}COM::${NAMESPACE}COM)
-else ()
-target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${NAMESPACE}Protocols::${NAMESPACE}Protocols)
-endif (USE_THUNDER_R4)
+target_link_libraries(${PLUGIN_IMPLEMENTATION} PRIVATE ${MIRACAST_FRAMEWORK_LIBRARY})
 
 if (RDK_SERVICES_L1_TEST)
 	target_sources(${PLUGIN_IMPLEMENTATION}
