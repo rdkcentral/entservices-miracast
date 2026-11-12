@@ -765,8 +765,9 @@ namespace WPEFramework
                 default:
                 {
                     result.message = "Invalid Player State";
+                    result.success = false;
                     MIRACASTLOG_ERROR("Invalid Player State[%#04X]", (int)playerState);
-                    return Core::ERROR_BAD_REQUEST;
+                    return Core::ERROR_NONE;
                 }
             }
 

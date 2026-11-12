@@ -20,6 +20,14 @@
 #include <MiracastRTSPMsg.h>
 #include <MiracastGstPlayer.h>
 
+// validateGetParameterContentLength() return value contract:
+//   > 0 : more body bytes were received than the declared Content-Length
+//   == 0 : the full body matching the declared Content-Length has been received
+//   RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE : header/body not fully received yet, keep buffering
+//   RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED  : Content-Length value itself is not a valid number
+static const int RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE = -1;
+static const int RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED  = -2;
+
 bool parseRtspInteger(const std::string& input, int& value)
 {
     try {
@@ -1750,7 +1758,14 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_receive_buffer_handling(std::string r
                 }
             }
 
-            if ( 0 <= returnvalue )
+            if ( RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED == returnvalue )
+            {
+                MIRACASTLOG_ERROR("#### MALFORMED Content-Length. REJECTING BUFFERED GET_PARAM_REQ [%s] ####",m_getparameter_request.c_str());
+                m_getparameter_request.clear();
+                m_getparameter_response_sent = false;
+                status_code = RTSP_INVALID_MSG_RECEIVED;
+            }
+            else if ( 0 <= returnvalue )
             {
                 if ( 0 == returnvalue )
                 {
@@ -1914,7 +1929,7 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
     size_t  contentLengthPos = input.find("Content-Length: "),
             doubleNewlinePos = input.find("\r\n\r\n"),
             actualContentLength = 0;
-    int     returnvalue = -1;
+    int     returnvalue = RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE;
 
     // Calculate the actual content length
     if (doubleNewlinePos != std::string::npos)
@@ -1933,14 +1948,21 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
         {
             std::string lengthStr = input.substr(valueStart, valueEnd - valueStart);
             size_t expectedLength = 0;
-            if (parseRtspSize(lengthStr, expectedLength) && expectedLength <= actualContentLength) {
-                returnvalue = actualContentLength - expectedLength;
-            } else {
-                MIRACASTLOG_ERROR("Invalid Content-Length\n");
+            if (!parseRtspSize(lengthStr, expectedLength))
+            {
+                // Not a valid number: no amount of additional buffering will fix this,
+                // so it must be distinguished from a genuinely incomplete body.
+                MIRACASTLOG_ERROR("Malformed Content-Length value [%s]\n", lengthStr.c_str());
+                returnvalue = RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED;
             }
+            else if (expectedLength <= actualContentLength)
+            {
+                returnvalue = actualContentLength - expectedLength;
+            }
+            // else: valid number, but body not fully received yet - keep the INCOMPLETE default
         }
     }
-    // Content-Length not found or invalid format
+    // Content-Length not found or body not fully received yet
     return returnvalue;
 }
 

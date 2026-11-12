@@ -18,6 +18,7 @@
  **/
 
 #include <string> 
+#include <utility>
 
 #include "MiracastPlayerImplementation.h"
 
@@ -51,9 +52,11 @@ namespace WPEFramework
 
         bool isValidEnvValue(const std::string& value)
         {
-            // Reject shell metacharacters that could enable injection
-            const char* dangerousChars[] = {"`", "$", "(", ")", ";", "&", "|", "<", ">", "\n", "\r"};
-            
+            // These values are only ever passed directly to setenv(), never to a shell,
+            // so shell metacharacters pose no injection risk here. Only reject embedded
+            // line breaks, which could otherwise be used to forge spurious log lines.
+            const char* dangerousChars[] = {"\n", "\r"};
+
             for (const char* dangerous : dangerousChars)
             {
                 if (value.find(dangerous) != std::string::npos)
@@ -409,10 +412,15 @@ namespace WPEFramework
         {
             std::string waylandDisplayName = "";
             bool isSuccessOrFailure = false;
+            result.success = false;
             if (westerosArgs)
             {
                 Exchange::IMiracastPlayer::EnvArguments entry{};
+                std::vector<std::pair<std::string, std::string>> validatedArgs;
 
+                // Validate the complete list before applying any entries, so that a
+                // later invalid entry cannot leave earlier ones already applied to
+                // the process environment.
                 while (westerosArgs->Next(entry) == true)
                 {
                     std::string argName = entry.argName;
@@ -423,14 +431,24 @@ namespace WPEFramework
                     {
                         MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
                         result.message = "Invalid environment variable name";
-                        return Core::ERROR_INVALID_PARAMETER;
+                        result.success = false;
+                        return Core::ERROR_NONE;
                     }
                     if (!isValidEnvValue(argValue))
                     {
                         MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
                         result.message = "Invalid environment variable value";
-                        return Core::ERROR_INVALID_PARAMETER;
+                        result.success = false;
+                        return Core::ERROR_NONE;
                     }
+
+                    validatedArgs.emplace_back(std::move(argName), std::move(argValue));
+                }
+
+                for (const auto& validatedArg : validatedArgs)
+                {
+                    const std::string& argName = validatedArg.first;
+                    const std::string& argValue = validatedArg.second;
 
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
@@ -445,7 +463,7 @@ namespace WPEFramework
 
                     if ( "WAYLAND_DISPLAY" == argName )
                     {
-                        waylandDisplayName = std::move(argValue);
+                        waylandDisplayName = argValue;
                         MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                     }
 
@@ -502,10 +520,15 @@ namespace WPEFramework
         {
             std::string waylandDisplayName = "";
             bool isSuccessOrFailure = false;
+            result.success = false;
             if (envArgs)
             {
                 Exchange::IMiracastPlayer::EnvArguments entry{};
+                std::vector<std::pair<std::string, std::string>> validatedArgs;
 
+                // Validate the complete list before applying any entries, so that a
+                // later invalid entry cannot leave earlier ones already applied to
+                // the process environment.
                 while (envArgs->Next(entry) == true)
                 {
                     std::string argName = entry.argName;
@@ -516,14 +539,24 @@ namespace WPEFramework
                     {
                         MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
                         result.message = "Invalid environment variable name";
-                        return Core::ERROR_INVALID_PARAMETER;
+                        result.success = false;
+                        return Core::ERROR_NONE;
                     }
                     if (!isValidEnvValue(argValue))
                     {
                         MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
                         result.message = "Invalid environment variable value";
-                        return Core::ERROR_INVALID_PARAMETER;
+                        result.success = false;
+                        return Core::ERROR_NONE;
                     }
+
+                    validatedArgs.emplace_back(std::move(argName), std::move(argValue));
+                }
+
+                for (const auto& validatedArg : validatedArgs)
+                {
+                    const std::string& argName = validatedArg.first;
+                    const std::string& argValue = validatedArg.second;
 
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
@@ -538,7 +571,7 @@ namespace WPEFramework
 
                     if ( "WAYLAND_DISPLAY" == argName )
                     {
-                        waylandDisplayName = std::move(argValue);
+                        waylandDisplayName = argValue;
                         MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                     }
 

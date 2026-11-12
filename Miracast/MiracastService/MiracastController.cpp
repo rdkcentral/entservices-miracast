@@ -300,9 +300,15 @@ std::string MiracastController::start_DHCPClient(std::string interface, std::str
             memset( data , 0x00 , sizeof(data));
             while (getline(&current_line_buffer, &len, popen_file_ptr) != -1)
             {
+                // Keep the bounded `data` buffer only for logging the running output;
+                // regex matching must happen against the freshly-read line itself so a
+                // lease/gateway line that arrives after `data` fills up (1023 bytes) is
+                // never silently dropped from consideration.
                 appendDhcpOutput(data, sizeof(data), current_line_buffer);
-                popen_buffer = data;
-                MIRACASTLOG_INFO("data : [%s][%s]", data,popen_buffer.c_str());
+                popen_buffer = current_line_buffer;
+                REMOVE_R(popen_buffer);
+                REMOVE_N(popen_buffer);
+                MIRACASTLOG_INFO("udhcpc line[%s] accumulatedOutput[%s]", popen_buffer.c_str(), data);
 
                 if ( local_addr.empty() && (std::regex_search(popen_buffer, match, localipRegex)))
                 {

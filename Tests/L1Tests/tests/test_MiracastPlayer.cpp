@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
 #include "COMLinkMock.h"
 #include "WrapsMock.h"
 #include "WorkerPoolImplementation.h"
@@ -675,8 +676,9 @@ TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentInputs)
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvName("BAD-NAME"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvName(""));
     EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("safe-value_1"));
-    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("$(command)"));
+    EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("$(command)"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\nnext"));
+    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\rnext"));
 }
 
 TEST_F(MiracastPlayerTest, RegisteredMethods)
@@ -1319,6 +1321,21 @@ TEST_F(MiracastPlayerEventTest, setPlayerState)
         release_SocketDescriptor();
     }
     EVENT_UNSUBSCRIBE(0, _T("onStateChange"), _T("client.events"), message);
+}
+
+TEST_F(MiracastPlayerTest, SetEnvArgumentsRejectsWithoutPartialApplication)
+{
+    unsetenv("WAYLAND_DISPLAY");
+
+    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setWesterosEnvironment"), _T("{\"westerosArgs\":[{\"argName\":\"WAYLAND_DISPLAY\",\"argValue\":\"regression-test-display\"},{\"argName\":\"BAD-NAME\",\"argValue\":\"1\"}],\"appName\":\"MiracastApp\"}"), response));
+    EXPECT_EQ(response, string("{\"message\":\"Invalid environment variable name\",\"success\":false}"));
+    // The earlier, individually-valid WAYLAND_DISPLAY entry must not have been
+    // applied just because a later entry in the same list was invalid.
+    EXPECT_EQ(nullptr, getenv("WAYLAND_DISPLAY"));
+
+    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnvArguments"), _T("{\"envArgs\":[{\"argName\":\"WAYLAND_DISPLAY\",\"argValue\":\"regression-test-display\"},{\"argName\":\"BAD-NAME\",\"argValue\":\"1\"}],\"appName\":\"MiracastApp\"}"), response));
+    EXPECT_EQ(response, string("{\"message\":\"Invalid environment variable name\",\"success\":false}"));
+    EXPECT_EQ(nullptr, getenv("WAYLAND_DISPLAY"));
 }
 
 TEST_F(MiracastPlayerTest, SetOrUnsetEnvArguments)
