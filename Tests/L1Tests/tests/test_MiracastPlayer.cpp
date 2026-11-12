@@ -1324,24 +1324,6 @@ TEST_F(MiracastPlayerEventTest, setPlayerState)
     EVENT_UNSUBSCRIBE(0, _T("onStateChange"), _T("client.events"), message);
 }
 
-TEST_F(MiracastPlayerTest, AutoConnectOptFlag)
-{
-    std::string rtsp_response = "";
-    createFile("/opt/miracast_autoconnect","GTest");
-
-    sleep(2);
-    EXPECT_TRUE(initialize_ServerSocket());
-    std::thread serverThread = std::thread([&]() { runRTSPSourceHandler( default_rtsp_srcMsgbuffer , default_rtsp_srcMsgSize , rtsp_response ); });
-
-    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("playRequest"), _T("{\"device_parameters\": {\"source_dev_ip\":\"127.0.0.1\",\"source_dev_mac\": \"A1:B2:C3:D4:E5:F6\",\"source_dev_name\":\"Sample-Android-Test-1\",\"sink_dev_ip\":\"192.168.59.1\"},\"video_rectangle\": {\"X\": 0,\"Y\" : 0,\"W\": 1920,\"H\": 1080}}"), response));
-
-    serverThread.join();
-    sleep(2);
-    release_SocketDescriptor();
-    removeFile("/opt/miracast_autoconnect");
-    sleep(2);
-}
-
 TEST_F(MiracastPlayerTest, SetOrUnsetEnvArguments)
 {
     EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setWesterosEnvironment"), _T("{\"westerosArgs\":[{\"argName\":\"WAYLAND_DISPLAY\",\"argValue\":\"westeros-testplayer-0\"},{\"argName\":\"XDG_RUNTIME_DIR\",\"argValue\":\"/tmp\"}],\"appName\":\"MiracastApp\"}"), response));

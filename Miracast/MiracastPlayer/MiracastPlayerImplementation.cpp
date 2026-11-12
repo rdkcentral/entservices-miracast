@@ -64,22 +64,6 @@ namespace WPEFramework
             return true;
         }
 
-        std::string sanitizeShellArgument(const std::string& input)
-        {
-            // Remove shell metacharacters and dangerous characters
-            std::string result;
-            for (char c : input)
-            {
-                // Allow only alphanumeric, space, hyphen, underscore, dot, and colon
-                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == ':'))
-                {
-                    return {};
-                }
-                result += c;
-            }
-            return result;
-        }
-
         MiracastPlayerImplementation::MiracastPlayerImplementation()
         : _adminLock()
         , mService(nullptr)
@@ -481,13 +465,6 @@ namespace WPEFramework
                     MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                 }
 
-                std::string waylandDisplayOverrideName = MiracastCommon::parse_opt_flag("/opt/miracast_custom_westeros_name");
-                if (!waylandDisplayOverrideName.empty())
-                {
-                    MIRACASTLOG_INFO("Wayland Display Name from Overrides: [%s]", waylandDisplayOverrideName.c_str());
-                    waylandDisplayName = std::move(waylandDisplayOverrideName);
-                }
-
                 if (!waylandDisplayName.empty())
                 {
                     if (0 == setenv("WAYLAND_DISPLAY", waylandDisplayName.c_str(), 1))
@@ -581,13 +558,6 @@ namespace WPEFramework
                     MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                 }
 
-                std::string waylandDisplayOverrideName = MiracastCommon::parse_opt_flag("/opt/miracast_custom_westeros_name");
-                if (!waylandDisplayOverrideName.empty())
-                {
-                    MIRACASTLOG_INFO("Wayland Display Name from Overrides: [%s]", waylandDisplayOverrideName.c_str());
-                    waylandDisplayName = std::move(waylandDisplayOverrideName);
-                }
-
                 if (!waylandDisplayName.empty())
                 {
                     if (0 == setenv("WAYLAND_DISPLAY", waylandDisplayName.c_str(), 1))
@@ -631,30 +601,7 @@ namespace WPEFramework
 
             auto tupleParam = std::make_tuple(client_mac,client_name,player_state,reason_code);
 
-            if (0 == access("/opt/miracast_autoconnect", F_OK))
-            {
-                char commandBuffer[768] = {0};
-                std::string sanitizedMac = sanitizeShellArgument(client_mac);
-                if (sanitizedMac.empty())
-                {
-                    MIRACASTLOG_ERROR("Rejected unsafe client identifier");
-                }
-                else
-                {
-                    snprintf( commandBuffer,
-                            sizeof(commandBuffer),
-                            "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
-                            sanitizedMac.c_str(),
-                            stateDescription(player_state).c_str(),
-                            std::to_string(reason_code).c_str());
-                    MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
-                    MiracastCommon::execute_SystemCommand( commandBuffer );
-                }
-            }
-            else
-            {
-                dispatchEvent(MIRACASTPLAYER_EVENT_ON_STATE_CHANGE, tupleParam);
-            }
+            dispatchEvent(MIRACASTPLAYER_EVENT_ON_STATE_CHANGE, tupleParam);
 
             if ( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED == player_state )
             {

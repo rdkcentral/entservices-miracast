@@ -1947,9 +1947,6 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
 MiracastError MiracastRTSPMsg::start_streaming( VIDEO_RECT_STRUCT video_rect )
 {
     MIRACASTLOG_TRACE("Entering...");
-    std::string gstreamerPipeline = "";
-    const char *mcastfile = "/opt/miracast_gstpipline.txt";
-    std::ifstream mcgstfile(mcastfile);
     std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_skip_firstframe_callback");
 
     if (!opt_flag_buffer.empty())
@@ -1958,40 +1955,10 @@ MiracastError MiracastRTSPMsg::start_streaming( VIDEO_RECT_STRUCT video_rect )
         set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING , true );
     }
 
-    if (mcgstfile.is_open())
-    {
-        std::getline(mcgstfile, gstreamerPipeline);
-        MIRACASTLOG_VERBOSE("gstpipeline reading from file [%s], gstreamerPipeline as [ %s] ", mcastfile, gstreamerPipeline.c_str());
-        mcgstfile.close();
-        if (0 == MiracastCommon::execute_SystemCommand(gstreamerPipeline.c_str()))
-            MIRACASTLOG_VERBOSE("Pipeline created successfully ");
-        else
-        {
-            MIRACASTLOG_ERROR("Pipeline creation failure");
-            return MIRACAST_FAIL;
-        }
-    }
-    else
-    {
-        if (access("/opt/miracast_gst", F_OK) == 0)
-        {
-            gstreamerPipeline = "GST_DEBUG=3 gst-launch-1.0 -vvv playbin uri=udp://0.0.0.0:1990 video-sink=\"westerossink\"";
-            MIRACASTLOG_VERBOSE("pipeline constructed is --> %s", gstreamerPipeline.c_str());
-            if (0 == MiracastCommon::execute_SystemCommand(gstreamerPipeline.c_str()))
-                MIRACASTLOG_VERBOSE("Pipeline created successfully ");
-            else
-            {
-                MIRACASTLOG_ERROR("Pipeline creation failure");
-                return MIRACAST_FAIL;
-            }
-        }
-        else
-        {
-            MiracastGstPlayer *MiracastGstPlayerObj = MiracastGstPlayer::getInstance();
-            MiracastGstPlayerObj->setVideoRectangle( video_rect );
-            MiracastGstPlayerObj->launch(m_sink_ip, m_wfd_streaming_port ,this);
-        }
-    }
+    MiracastGstPlayer *MiracastGstPlayerObj = MiracastGstPlayer::getInstance();
+    MiracastGstPlayerObj->setVideoRectangle( video_rect );
+    MiracastGstPlayerObj->launch(m_sink_ip, m_wfd_streaming_port ,this);
+
     m_streaming_started = true;
     MIRACASTLOG_TRACE("Exiting...");
     return MIRACAST_OK;

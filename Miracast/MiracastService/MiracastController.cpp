@@ -1621,10 +1621,6 @@ void MiracastController::notify_ConnectionRequest(std::string device_name,std::s
                         m_current_device_name.c_str(), 
                         m_current_device_mac_addr.c_str());
     m_connect_req_notified = true;
-    if (0 == access("/opt/miracast_direct_request", F_OK))
-    {
-        m_connect_req_notified = false;
-    }
 
     if (nullptr != m_notify_handler)
     {
