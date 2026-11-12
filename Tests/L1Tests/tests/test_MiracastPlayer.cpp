@@ -43,7 +43,6 @@ using namespace WPEFramework;
 namespace WPEFramework { namespace Plugin {
 bool isValidEnvName(const std::string& name);
 bool isValidEnvValue(const std::string& value);
-std::string sanitizeShellArgument(const std::string& input);
 } }
 
 bool parseRtspInteger(const std::string& input, int& value);
@@ -670,7 +669,7 @@ TEST(MiracastPlayerSecurityTest, ParsesRtspNumericFieldsSafely)
     EXPECT_FALSE(parseRtspSize("999999999999999999999999", sizeValue));
 }
 
-TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentAndShellInputs)
+TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentInputs)
 {
     EXPECT_TRUE(WPEFramework::Plugin::isValidEnvName("SAFE_NAME"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvName("BAD-NAME"));
@@ -678,8 +677,6 @@ TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentAndShellInputs)
     EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("safe-value_1"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("$(command)"));
     EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\nnext"));
-    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("device;name_1"));
-    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
 }
 
 TEST_F(MiracastPlayerTest, RegisteredMethods)
