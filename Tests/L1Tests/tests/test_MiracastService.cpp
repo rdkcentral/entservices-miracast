@@ -35,31 +35,14 @@
 #include "WorkerPoolImplementation.h"
 #include "MiracastServiceImplementation.h"
 #include <sys/time.h>
+#include <future>
 
 namespace WPEFramework { namespace Plugin {
 std::string sanitizeShellArgument(const std::string& input);
 } }
 
 bool appendDhcpOutput(char* destination, size_t capacity, const char* line);
-
-TEST(MiracastServiceSecurityTest, BoundsDhcpOutputAccumulation)
-{
-    char output[8] = "abc";
-    EXPECT_TRUE(appendDhcpOutput(output, sizeof(output), "de"));
-    EXPECT_STREQ("abcde", output);
-    EXPECT_FALSE(appendDhcpOutput(output, sizeof(output), "0123456789"));
-    EXPECT_EQ('\0', output[sizeof(output) - 1]);
-    EXPECT_FALSE(appendDhcpOutput(nullptr, sizeof(output), "line"));
-    EXPECT_FALSE(appendDhcpOutput(output, 0, "line"));
-}
-
-TEST(MiracastServiceSecurityTest, SanitizesPeerControlledShellArguments)
-{
-    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("peer;name_1"));
-    EXPECT_EQ("192.168.1.2", WPEFramework::Plugin::sanitizeShellArgument("192.168.1.2"));
-    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
-}
-#include <future>
+bool appendMiracastCommandOutput(char* destination, size_t capacity, const char* line);
 
 using namespace WPEFramework;
 using ::testing::NiceMock;
@@ -279,6 +262,34 @@ protected:
         PluginHost::IFactories::Assign(nullptr);
     }
 };
+
+TEST(MiracastServiceSecurityTest, BoundsDhcpOutputAccumulation)
+{
+    char output[8] = "abc";
+    EXPECT_TRUE(appendDhcpOutput(output, sizeof(output), "de"));
+    EXPECT_STREQ("abcde", output);
+    EXPECT_FALSE(appendDhcpOutput(output, sizeof(output), "0123456789"));
+    EXPECT_EQ('\0', output[sizeof(output) - 1]);
+    EXPECT_FALSE(appendDhcpOutput(nullptr, sizeof(output), "line"));
+    EXPECT_FALSE(appendDhcpOutput(output, 0, "line"));
+}
+
+TEST(MiracastServiceSecurityTest, SanitizesPeerControlledShellArguments)
+{
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("peer;name_1"));
+    EXPECT_EQ("192.168.1.2", WPEFramework::Plugin::sanitizeShellArgument("192.168.1.2"));
+    EXPECT_EQ("", WPEFramework::Plugin::sanitizeShellArgument("`$()&|<>"));
+}
+
+TEST(MiracastServiceSecurityTest, BoundsCommonCommandOutput)
+{
+    char output[8] = "abc";
+    EXPECT_TRUE(appendMiracastCommandOutput(output, sizeof(output), "de"));
+    EXPECT_STREQ("abcde", output);
+    EXPECT_FALSE(appendMiracastCommandOutput(output, sizeof(output), "0123456789"));
+    EXPECT_EQ('\0', output[sizeof(output) - 1]);
+    EXPECT_FALSE(appendMiracastCommandOutput(nullptr, sizeof(output), "line"));
+}
 
 TEST_F(MiracastServiceTest, GetInformation)
 {
