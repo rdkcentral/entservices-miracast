@@ -23,6 +23,7 @@
 
 #include <interfaces/Ids.h>
 #include <interfaces/IMiracastService.h>
+#include <interfaces/IMiracastPlayer.h>
 #include <interfaces/IPowerManager.h>
 #include<interfaces/IConfiguration.h>
 #include <interfaces/ISystemServices.h>
@@ -32,7 +33,10 @@
 
 #include <com/com.h>
 #include <core/core.h>
+#include <atomic>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include "libIBus.h"
@@ -138,6 +142,50 @@ namespace WPEFramework
                         JsonObject _params;
                 }; // class Job
 
+                class EXTERNAL PowerModeJob : public Core::IDispatch
+                {
+                    protected:
+                        PowerModeJob(MiracastServiceImplementation *impl, PowerState newState, int transactionId)
+                            : _impl(impl), _newState(newState), _transactionId(transactionId)
+                        {
+                            if (_impl != nullptr)
+                            {
+                                _impl->AddRef();
+                            }
+                        }
+
+                    public:
+                        PowerModeJob() = delete;
+                        PowerModeJob(const PowerModeJob &) = delete;
+                        PowerModeJob &operator=(const PowerModeJob &) = delete;
+                        ~PowerModeJob()
+                        {
+                            if (_impl != nullptr)
+                            {
+                                _impl->Release();
+                            }
+                        }
+
+                        static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *impl, PowerState newState, int transactionId)
+                        {
+        #ifndef USE_THUNDER_R4
+                            return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId)));
+        #else
+                            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<PowerModeJob>::Create(impl, newState, transactionId)));
+        #endif
+                        }
+
+                        void Dispatch() override
+                        {
+                            _impl->setPowerStateInternal(_newState, true, _transactionId);
+                        }
+
+                    private:
+                        MiracastServiceImplementation *_impl;
+                        const PowerState _newState;
+                        const int _transactionId;
+                }; // class PowerModeJob
+
             public:
                 uint32_t Configure(PluginHost::IShell* service) override;
 
@@ -152,7 +200,7 @@ namespace WPEFramework
                 Core::hresult SetP2PBackendDiscovery(const bool enabled , Result &returnPayload ) override;
 
             private:
-                class PowerManagerNotification : public Exchange::IPowerManager::IModeChangedNotification
+                class PowerManagerNotification : public Exchange::IPowerManager::IModePreChangeNotification
                 {
                     private:
                         PowerManagerNotification(const PowerManagerNotification&) = delete;
@@ -166,9 +214,9 @@ namespace WPEFramework
                         ~PowerManagerNotification() override = default;
                     
                     public:
-                        void OnPowerModeChanged(const PowerState currentState, const PowerState newState) override
+                        void OnPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter) override
                         {
-                            _parent.onPowerModeChanged(currentState, newState);
+                            _parent.onPowerModePreChange(currentState, newState, transactionId, stateChangeAfter);
                         }
 
                         template <typename T>
@@ -179,7 +227,7 @@ namespace WPEFramework
                         }
 
                         BEGIN_INTERFACE_MAP(PowerManagerNotification)
-                        INTERFACE_ENTRY(Exchange::IPowerManager::IModeChangedNotification)
+                        INTERFACE_ENTRY(Exchange::IPowerManager::IModePreChangeNotification)
                         END_INTERFACE_MAP
 
                     private:
@@ -214,6 +262,36 @@ namespace WPEFramework
                         MiracastServiceImplementation& _parent;
                 };
 
+                class PlayerStopNotification : public Exchange::IMiracastPlayer::INotification
+                {
+                    private:
+                        PlayerStopNotification(const PlayerStopNotification&) = delete;
+                        PlayerStopNotification& operator=(const PlayerStopNotification&) = delete;
+
+                    public:
+                        explicit PlayerStopNotification(MiracastServiceImplementation& parent)
+                        : _parent(parent)
+                        {
+                        }
+                        ~PlayerStopNotification() override = default;
+
+                    public:
+                        void OnStateChange(const string &clientName, const string &clientMac, const Exchange::IMiracastPlayer::State playerState, const string &reasonCode, const Exchange::IMiracastPlayer::ReasonCode reasonDescription) override
+                        {
+                            if (Exchange::IMiracastPlayer::STATE_STOPPED == playerState)
+                            {
+                                _parent.onPlayerStopped();
+                            }
+                        }
+
+                        BEGIN_INTERFACE_MAP(PlayerStopNotification)
+                        INTERFACE_ENTRY(Exchange::IMiracastPlayer::INotification)
+                        END_INTERFACE_MAP
+
+                    private:
+                        MiracastServiceImplementation& _parent;
+                };
+
                 mutable Core::CriticalSection _adminLock;
                 std::mutex m_DiscoveryStateMutex;
                 std::recursive_mutex m_EventMutex;
@@ -221,6 +299,7 @@ namespace WPEFramework
                 std::string m_src_dev_mac{""};
                 std::string m_src_dev_name{""};
                 std::string m_sink_dev_ip{""};
+                std::mutex m_WiFiPluginMutex;
                 WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement> *m_WiFiPluginObj = nullptr;
                 std::list<Exchange::IMiracastService::INotification *> _miracastServiceNotification; // List of registered notifications
                 PluginHost::IShell *m_CurrentService;
@@ -231,6 +310,22 @@ namespace WPEFramework
                 bool m_isServiceInitialized{false};
                 bool m_isServiceEnabled{false};
 
+                std::atomic<bool> m_IsTransitionFromDeepSleep{false};
+                std::atomic<bool> m_IsDeepSleepInProgress{false};
+                uint32_t m_PowerPreChangeClientId{0};
+                std::mutex m_PowerManagerMutex;
+                std::mutex m_PowerTransitionMutex;
+                std::mutex m_PowerDelayMonitorCtrlMutex;
+                std::mutex m_PowerDelayMonitorMutex;
+                std::condition_variable m_PowerDelayMonitorCv;
+                bool m_PowerDelayMonitorDone{true};
+                int m_PowerDelayMonitorTransactionId{0};
+                std::thread m_PowerDelayMonitorThread;
+                std::mutex m_PlayerStopMutex;
+                std::condition_variable m_PlayerStopCv;
+                bool m_PlayerStopped{false};
+                Core::Sink<PlayerStopNotification> _playerStopNotification;
+
                 void dispatchEvent(Event, const JsonObject &params);
                 void Dispatch(Event event, const JsonObject &params);
 
@@ -238,6 +333,8 @@ namespace WPEFramework
                 void changeServiceState(eMIRA_SERVICE_STATES eService_state);
                 bool envGetValue(const char *key, std::string &value);
                 void getThunderPlugins(void);
+                void subscribeWiFiEvents(void);
+                void releaseWiFiPlugin(void);
                 bool updateSystemFriendlyName();
                 void setEnableInternal(bool isEnabled);
 
@@ -245,7 +342,13 @@ namespace WPEFramework
                 void registerEventHandlers();
                 void InitializePowerState();
                 std::string getPowerStateString(PowerState pwrState);
-                void setPowerStateInternal(PowerState pwrState);
+                void setPowerStateInternal(PowerState pwrState, bool isPreChange = false, int transactionId = 0);
+                void requestPowerModeChangeDelay(int transactionId, int delaySec);
+                void startPowerDelayMonitor(int transactionId);
+                void stopPowerDelayMonitor(int transactionId, bool force = false);
+                void powerDelayMonitor(int transactionId);
+                void stopActivePlayerSession(void);
+                void onPlayerStopped(void);
 
                 void setWiFiStateInternal(DEVICE_WIFI_STATES wifiState);
 
@@ -261,6 +364,7 @@ namespace WPEFramework
                 static gboolean monitor_miracast_connection_timercallback(gpointer userdata);
                 void remove_wifi_connection_state_timer(void);
                 void remove_miracast_connection_timer(void);
+                void remove_friendly_name_timer(void);
 
             public:
                 static MiracastServiceImplementation *_instance;
@@ -272,9 +376,10 @@ namespace WPEFramework
                 Core::Sink<SystemServicesNotification> _systemServicesNotification;
                 bool _registeredSystemEventHandlers;
 
-                void onPowerModeChanged(const PowerState currentState, const PowerState newState);
+                void onPowerModePreChange(const PowerState currentState, const PowerState newState, const int transactionId, const int stateChangeAfter);
 
                 friend class Job;
+                friend class PowerModeJob;
         }; // class MiracastServiceImplementation
     } // namespace Plugin
 } // namespace WPEFramework
