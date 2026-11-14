@@ -30,7 +30,7 @@ set(MIRACAST_SERVICE_IMPLEMENTATION ${PLUGIN_NAME}Implementation)
 add_definitions(-DPLUGIN_MIRACAST_SERVICE_IMPLEMENTATION_NAME="${MIRACAST_SERVICE_IMPLEMENTATION}")
 
 find_package(${NAMESPACE}Plugins REQUIRED)
-find_package(${NAMESPACE}Helpers REQUIRED)
+find_package(${NAMESPACE}Helpers CONFIG REQUIRED)
 find_package(IARMBus)
 find_package(GLIB REQUIRED)
 find_package(${NAMESPACE}Plugins REQUIRED)
