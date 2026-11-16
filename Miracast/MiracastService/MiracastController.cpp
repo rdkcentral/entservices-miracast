@@ -1262,6 +1262,8 @@ void MiracastController::Controller_Thread(void *args)
                             MIRACASTLOG_INFO("CONTROLLER_STOP_DISCOVERING Received\n");
                             stop_session(false);
                             m_start_discovering_enabled = false;
+                            reset_WFDSourceMACAddress();
+                            reset_WFDSourceName();
                             {
                                 std::lock_guard<std::mutex> lock(m_stop_discovery_mutex);
                                 ++m_stop_discovery_processed;
