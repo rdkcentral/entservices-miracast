@@ -791,14 +791,6 @@ bool MiracastGstPlayer::createPipeline()
     MIRACASTLOG_TRACE(">>>>>>>rtpjitterbuffer configuration start");
     MIRACASTLOG_TRACE("Set the 'post-drop-messages' and 'do-lost' to rtpjitterbuffer.");
     g_object_set(G_OBJECT(m_rtpjitterbuffer), "post-drop-messages", true, "do-lost" , true , nullptr );
-    std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_faststart-min-packets",true,false);
-
-    if (!opt_flag_buffer.empty())
-    {
-        uint64_t packetsPerBuffer = std::stoull(opt_flag_buffer);
-        MIRACASTLOG_INFO("Set 'faststart-min-packets' to rtpjitterbuffer");
-        g_object_set(G_OBJECT(m_rtpjitterbuffer), "faststart-min-packets", packetsPerBuffer, nullptr );
-    }
     MIRACASTLOG_TRACE("rtpjitterbuffer configuration end<<<<<<<<");
     
     /*}}}*/
@@ -807,14 +799,6 @@ bool MiracastGstPlayer::createPipeline()
     MIRACASTLOG_TRACE(">>>>>>>tsparse configuration start");
     MIRACASTLOG_TRACE("Set 'set-timestamps' to tsparse");
     g_object_set(G_OBJECT(m_tsparse), "set-timestamps", true, nullptr );
-    opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_tsparse_alignment",true,false);
-
-    if (!opt_flag_buffer.empty())
-    {
-        uint64_t packetsPerBuffer = std::stoull(opt_flag_buffer);
-        MIRACASTLOG_INFO("Set 'alignment' to tsparse");
-        g_object_set(G_OBJECT(m_tsparse), "alignment", packetsPerBuffer, nullptr );
-    }
     MIRACASTLOG_TRACE("tsparse configuration end<<<<<<<<");
     /*}}}*/
 

@@ -20,6 +20,42 @@
 #include <MiracastRTSPMsg.h>
 #include <MiracastGstPlayer.h>
 
+// validateGetParameterContentLength() return value contract:
+//   > 0 : more body bytes were received than the declared Content-Length
+//   == 0 : the full body matching the declared Content-Length has been received
+//   RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE : header/body not fully received yet, keep buffering
+//   RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED  : Content-Length value itself is not a valid number
+static const int RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE = -1;
+static const int RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED  = -2;
+
+bool parseRtspInteger(const std::string& input, int& value)
+{
+    try {
+        size_t parsed = 0;
+        const int candidate = std::stoi(input, &parsed);
+        if (parsed != input.size() || candidate < 0)
+            return false;
+        value = candidate;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool parseRtspSize(const std::string& input, size_t& value)
+{
+    try {
+        size_t parsed = 0;
+        const size_t candidate = std::stoul(input, &parsed);
+        if (parsed != input.size())
+            return false;
+        value = candidate;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 MiracastRTSPMsg *MiracastRTSPMsg::m_rtsp_msg_obj{nullptr};
 
 static RTSP_MSG_FMT_TEMPLATE m_rtsp_msg_fmt_template[] = {
@@ -1543,7 +1579,10 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_m6_ack_m7_send_request(std::string rt
                 MIRACASTLOG_TRACE("Session Number[%s]\n",session_number.c_str());
                 if (match.size() > 2 && match[2].matched)
                 {
-                    timeoutValue = std::stoi(match[2]);
+                    if (!parseRtspInteger(match[2].str(), timeoutValue)) {
+                        MIRACASTLOG_ERROR("Invalid timeout value; using default\n");
+                        timeoutValue = RTSP_DFLT_KEEP_ALIVE_WAIT_TIMEOUT_SEC;
+                    }
                     MIRACASTLOG_INFO("timeoutValue[%d] in M6 ACK\n",timeoutValue);
                 }
                 else
@@ -1719,7 +1758,14 @@ RTSP_STATUS MiracastRTSPMsg::validate_rtsp_receive_buffer_handling(std::string r
                 }
             }
 
-            if ( 0 <= returnvalue )
+            if ( RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED == returnvalue )
+            {
+                MIRACASTLOG_ERROR("#### MALFORMED Content-Length. REJECTING BUFFERED GET_PARAM_REQ [%s] ####",m_getparameter_request.c_str());
+                m_getparameter_request.clear();
+                m_getparameter_response_sent = false;
+                status_code = RTSP_INVALID_MSG_RECEIVED;
+            }
+            else if ( 0 <= returnvalue )
             {
                 if ( 0 == returnvalue )
                 {
@@ -1883,7 +1929,7 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
     size_t  contentLengthPos = input.find("Content-Length: "),
             doubleNewlinePos = input.find("\r\n\r\n"),
             actualContentLength = 0;
-    int     returnvalue = -1;
+    int     returnvalue = RTSP_GET_PARAM_CONTENT_LENGTH_INCOMPLETE;
 
     // Calculate the actual content length
     if (doubleNewlinePos != std::string::npos)
@@ -1901,20 +1947,28 @@ int MiracastRTSPMsg::validateGetParameterContentLength(std::string& input)
         if (valueEnd != std::string::npos)
         {
             std::string lengthStr = input.substr(valueStart, valueEnd - valueStart);
-            size_t expectedLength = std::stoul(lengthStr);
-            returnvalue = actualContentLength - expectedLength;
+            size_t expectedLength = 0;
+            if (!parseRtspSize(lengthStr, expectedLength))
+            {
+                // Not a valid number: no amount of additional buffering will fix this,
+                // so it must be distinguished from a genuinely incomplete body.
+                MIRACASTLOG_ERROR("Malformed Content-Length value [%s]\n", lengthStr.c_str());
+                returnvalue = RTSP_GET_PARAM_CONTENT_LENGTH_MALFORMED;
+            }
+            else if (expectedLength <= actualContentLength)
+            {
+                returnvalue = actualContentLength - expectedLength;
+            }
+            // else: valid number, but body not fully received yet - keep the INCOMPLETE default
         }
     }
-    // Content-Length not found or invalid format
+    // Content-Length not found or body not fully received yet
     return returnvalue;
 }
 
 MiracastError MiracastRTSPMsg::start_streaming( VIDEO_RECT_STRUCT video_rect )
 {
     MIRACASTLOG_TRACE("Entering...");
-    std::string gstreamerPipeline = "";
-    const char *mcastfile = "/opt/miracast_gstpipline.txt";
-    std::ifstream mcgstfile(mcastfile);
     std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_skip_firstframe_callback");
 
     if (!opt_flag_buffer.empty())
@@ -1923,40 +1977,10 @@ MiracastError MiracastRTSPMsg::start_streaming( VIDEO_RECT_STRUCT video_rect )
         set_state(WPEFramework::Exchange::IMiracastPlayer::STATE_PLAYING , true );
     }
 
-    if (mcgstfile.is_open())
-    {
-        std::getline(mcgstfile, gstreamerPipeline);
-        MIRACASTLOG_VERBOSE("gstpipeline reading from file [%s], gstreamerPipeline as [ %s] ", mcastfile, gstreamerPipeline.c_str());
-        mcgstfile.close();
-        if (0 == MiracastCommon::execute_SystemCommand(gstreamerPipeline.c_str()))
-            MIRACASTLOG_VERBOSE("Pipeline created successfully ");
-        else
-        {
-            MIRACASTLOG_ERROR("Pipeline creation failure");
-            return MIRACAST_FAIL;
-        }
-    }
-    else
-    {
-        if (access("/opt/miracast_gst", F_OK) == 0)
-        {
-            gstreamerPipeline = "GST_DEBUG=3 gst-launch-1.0 -vvv playbin uri=udp://0.0.0.0:1990 video-sink=\"westerossink\"";
-            MIRACASTLOG_VERBOSE("pipeline constructed is --> %s", gstreamerPipeline.c_str());
-            if (0 == MiracastCommon::execute_SystemCommand(gstreamerPipeline.c_str()))
-                MIRACASTLOG_VERBOSE("Pipeline created successfully ");
-            else
-            {
-                MIRACASTLOG_ERROR("Pipeline creation failure");
-                return MIRACAST_FAIL;
-            }
-        }
-        else
-        {
-            MiracastGstPlayer *MiracastGstPlayerObj = MiracastGstPlayer::getInstance();
-            MiracastGstPlayerObj->setVideoRectangle( video_rect );
-            MiracastGstPlayerObj->launch(m_sink_ip, m_wfd_streaming_port ,this);
-        }
-    }
+    MiracastGstPlayer *MiracastGstPlayerObj = MiracastGstPlayer::getInstance();
+    MiracastGstPlayerObj->setVideoRectangle( video_rect );
+    MiracastGstPlayerObj->launch(m_sink_ip, m_wfd_streaming_port ,this);
+
     m_streaming_started = true;
     MIRACASTLOG_TRACE("Exiting...");
     return MIRACAST_OK;

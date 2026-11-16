@@ -29,15 +29,25 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
 #include "COMLinkMock.h"
 #include "WrapsMock.h"
 #include "WorkerPoolImplementation.h"
 #include "MiracastPlayerImplementation.h"
+
 #include <sys/time.h>
 #include <future>
 #include <thread>
 
 using namespace WPEFramework;
+
+namespace WPEFramework { namespace Plugin {
+bool isValidEnvName(const std::string& name);
+bool isValidEnvValue(const std::string& value);
+} }
+
+bool parseRtspInteger(const std::string& input, int& value);
+bool parseRtspSize(const std::string& input, size_t& value);
 
 using ::testing::NiceMock;
 namespace {
@@ -643,6 +653,33 @@ protected:
         PluginHost::IFactories::Assign(nullptr);
     }
 };
+
+TEST(MiracastPlayerSecurityTest, ParsesRtspNumericFieldsSafely)
+{
+    int integerValue = 0;
+    EXPECT_TRUE(parseRtspInteger("30", integerValue));
+    EXPECT_EQ(30, integerValue);
+    EXPECT_FALSE(parseRtspInteger("-1", integerValue));
+    EXPECT_FALSE(parseRtspInteger("12suffix", integerValue));
+    EXPECT_FALSE(parseRtspInteger("999999999999999999999", integerValue));
+
+    size_t sizeValue = 0;
+    EXPECT_TRUE(parseRtspSize("128", sizeValue));
+    EXPECT_EQ(128u, sizeValue);
+    EXPECT_FALSE(parseRtspSize("128suffix", sizeValue));
+    EXPECT_FALSE(parseRtspSize("999999999999999999999999", sizeValue));
+}
+
+TEST(MiracastPlayerSecurityTest, RejectsUnsafeEnvironmentInputs)
+{
+    EXPECT_TRUE(WPEFramework::Plugin::isValidEnvName("SAFE_NAME"));
+    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvName("BAD-NAME"));
+    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvName(""));
+    EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("safe-value_1"));
+    EXPECT_TRUE(WPEFramework::Plugin::isValidEnvValue("$(command)"));
+    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\nnext"));
+    EXPECT_FALSE(WPEFramework::Plugin::isValidEnvValue("value\rnext"));
+}
 
 TEST_F(MiracastPlayerTest, RegisteredMethods)
 {
@@ -1286,22 +1323,19 @@ TEST_F(MiracastPlayerEventTest, setPlayerState)
     EVENT_UNSUBSCRIBE(0, _T("onStateChange"), _T("client.events"), message);
 }
 
-TEST_F(MiracastPlayerTest, AutoConnectOptFlag)
+TEST_F(MiracastPlayerTest, SetEnvArgumentsRejectsWithoutPartialApplication)
 {
-    std::string rtsp_response = "";
-    createFile("/opt/miracast_autoconnect","GTest");
+    unsetenv("WAYLAND_DISPLAY");
 
-    sleep(2);
-    EXPECT_TRUE(initialize_ServerSocket());
-    std::thread serverThread = std::thread([&]() { runRTSPSourceHandler( default_rtsp_srcMsgbuffer , default_rtsp_srcMsgSize , rtsp_response ); });
+    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setWesterosEnvironment"), _T("{\"westerosArgs\":[{\"argName\":\"WAYLAND_DISPLAY\",\"argValue\":\"regression-test-display\"},{\"argName\":\"BAD-NAME\",\"argValue\":\"1\"}],\"appName\":\"MiracastApp\"}"), response));
+    EXPECT_EQ(response, string("{\"message\":\"Invalid environment variable name\",\"success\":false}"));
+    // The earlier, individually-valid WAYLAND_DISPLAY entry must not have been
+    // applied just because a later entry in the same list was invalid.
+    EXPECT_EQ(nullptr, getenv("WAYLAND_DISPLAY"));
 
-    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("playRequest"), _T("{\"device_parameters\": {\"source_dev_ip\":\"127.0.0.1\",\"source_dev_mac\": \"A1:B2:C3:D4:E5:F6\",\"source_dev_name\":\"Sample-Android-Test-1\",\"sink_dev_ip\":\"192.168.59.1\"},\"video_rectangle\": {\"X\": 0,\"Y\" : 0,\"W\": 1920,\"H\": 1080}}"), response));
-
-    serverThread.join();
-    sleep(2);
-    release_SocketDescriptor();
-    removeFile("/opt/miracast_autoconnect");
-    sleep(2);
+    EXPECT_EQ(Core::ERROR_NONE, handler.Invoke(connection, _T("setEnvArguments"), _T("{\"envArgs\":[{\"argName\":\"WAYLAND_DISPLAY\",\"argValue\":\"regression-test-display\"},{\"argName\":\"BAD-NAME\",\"argValue\":\"1\"}],\"appName\":\"MiracastApp\"}"), response));
+    EXPECT_EQ(response, string("{\"message\":\"Invalid environment variable name\",\"success\":false}"));
+    EXPECT_EQ(nullptr, getenv("WAYLAND_DISPLAY"));
 }
 
 TEST_F(MiracastPlayerTest, SetOrUnsetEnvArguments)

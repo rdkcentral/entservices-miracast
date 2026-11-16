@@ -415,15 +415,7 @@ MiracastError MiracastP2P::set_WFDParameters(void)
         command = "WFD_SUBELEM_SET 0 000600111c4400c8";
         executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
 
-        std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_custom_p2p_cfg");
-        if (!opt_flag_buffer.empty())
-        {
-            command = "SET config_methods " + opt_flag_buffer;
-        }
-        else
-        {
-            command = "SET config_methods pbc";
-        }
+        command = "SET config_methods pbc";
         executeCommand(command, NON_GLOBAL_INTERFACE, retBuffer);
 
         set_FriendlyName(get_FriendlyName() , true);
@@ -460,21 +452,13 @@ MiracastError MiracastP2P::discover_devices(void)
 {
     MiracastError ret = MIRACAST_FAIL;
     std::string command, retBuffer;
-    std::string opt_flag_buffer = MiracastCommon::parse_opt_flag("/opt/miracast_custom_p2p_scan");
     MIRACASTLOG_TRACE("Entering..");
 
     /*Start Passive Scanning*/
     command = "P2P_EXT_LISTEN 0 0";
     ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
 
-    if (!opt_flag_buffer.empty())
-    {
-	    command = "P2P_EXT_LISTEN " + opt_flag_buffer;
-    }
-    else
-    {
-	    command = "P2P_EXT_LISTEN 200 1000";
-    }
+    command = "P2P_EXT_LISTEN 200 1000";
 
     ret = executeCommand(std::move(command), NON_GLOBAL_INTERFACE, retBuffer);
     if (ret != MIRACAST_OK)
