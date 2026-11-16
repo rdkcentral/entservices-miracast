@@ -2,6 +2,8 @@
 set -x
 set -e
 ##############################
+THUNDER_TOOLS_COMMIT_SHA="d5dd83c7c19c49c7f25c558c126500bd2d64f7a4"
+THUNDER_COMMIT_SHA="2c0fcc5529e7da734be558ca6efa05d934dcce31"
 GITHUB_WORKSPACE="${PWD}"
 ls -la ${GITHUB_WORKSPACE}
 cd ${GITHUB_WORKSPACE}
@@ -10,7 +12,7 @@ cd ${GITHUB_WORKSPACE}
 #1. Install Dependencies and packages
 
 apt update
-apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libwpa-client-dev
 pip install jsonref
 
 ############################
@@ -27,9 +29,15 @@ cd ..
 # Clone the required repositories
 
 
-git clone --branch R4.4.3 https://github.com/rdkcentral/ThunderTools.git
+git clone --branch  R4_4-RDK https://github.com/rdkcentral/ThunderTools.git
+cd ThunderTools
+git checkout $THUNDER_TOOLS_COMMIT_SHA
+cd ..
 
-git clone --branch R4.4.1 https://github.com/rdkcentral/Thunder.git
+git clone --branch  R4_4-RDK https://github.com/rdkcentral/Thunder.git
+cd Thunder
+git checkout $THUNDER_COMMIT_SHA
+cd ..
 
 git clone --branch develop https://github.com/rdkcentral/entservices-apis.git
 
@@ -37,7 +45,7 @@ cd ..
 git clone --branch develop https://github.com/rdkcentral/entservices-helpers.git
 cd "$GITHUB_WORKSPACE"
 
-git clone --branch 1.0.14 https://github.com/rdkcentral/entservices-testframework.git
+git clone --branch 2.0.0 https://github.com/rdkcentral/entservices-testframework.git
 
 git clone --branch main https://github.com/rdkcentral/networkmanager.git
 
@@ -46,7 +54,6 @@ git clone --branch main https://github.com/rdkcentral/networkmanager.git
 echo "======================================================================================"
 echo "buliding thunderTools"
 cd ThunderTools
-patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/00010-R4.4-Add-support-for-project-dir.patch
 cd -
 
 
@@ -65,10 +72,6 @@ echo "==========================================================================
 echo "buliding thunder"
 
 cd Thunder
-patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
-patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/error_code_R4_4.patch
-patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/1004-Add-support-for-project-dir.patch
-patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/RDKEMW-733-Add-ENTOS-IDS.patch
 cd -
 
 cmake -G Ninja -S Thunder -B build/Thunder \
@@ -184,6 +187,28 @@ touch btmgr.h
 touch rdk_logger_milestone.h
 touch gdialservice.h
 touch gdialservicecommon.h
+
+#Create SoC-specific Miracast Player header with stub implementations
+cat > SoC_MiracastPlayer.h << 'EOF'
+#ifndef _SOC_MIRACAST_PLAYER_H_
+#define _SOC_MIRACAST_PLAYER_H_
+
+#include <gst/gst.h>
+
+static inline void SoC_ConfigureVideoDecodeErrorPolicy(void) {}
+static inline GstElement* SoC_GetAudioSinkProperty(void) { return nullptr; }
+static inline void SoC_ReleaseAudioSinkProperty(GstElement* sink) {}
+
+#endif
+EOF
+
+# Create mock MiracastPlayerHal library for native/coverage builds
+mkdir -p ${GITHUB_WORKSPACE}/install/usr/lib
+echo "int _MiracastPlayerHal_stub = 0;" | gcc -x c -c -o /tmp/miracast_player_hal.o -
+ar rcs ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /tmp/miracast_player_hal.o
+# Copy to system library path for linker discovery
+cp ${GITHUB_WORKSPACE}/install/usr/lib/libMiracastPlayerHal.a /usr/lib/x86_64-linux-gnu/
+
 echo "files created successfully"
 echo "======================================================================================"
 
