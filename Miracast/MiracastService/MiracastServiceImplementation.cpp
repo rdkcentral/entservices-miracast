@@ -457,13 +457,12 @@ namespace WPEFramework
                     if (m_isServiceInitialized)
                     {
                         MiracastController::destroyInstance();
-                        m_CurrentService = nullptr;
-                        m_miracast_ctrler_obj = nullptr;
-                        m_isServiceInitialized = false;
-                        lock_guard<recursive_mutex> lock(m_EventMutex);
-                        m_isServiceEnabled = false;
                         MIRACASTLOG_INFO("Done..!!!");
                     }
+                    lock_guard<recursive_mutex> lock(m_EventMutex);
+                    m_miracast_ctrler_obj = nullptr;
+                    m_isServiceInitialized = false;
+                    m_isServiceEnabled = false;
                     if(m_CurrentService)
                     {
                         m_CurrentService->Release();
