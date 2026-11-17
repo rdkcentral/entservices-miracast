@@ -460,7 +460,7 @@ namespace WPEFramework
                         MiracastController::destroyInstance();
                         MIRACASTLOG_INFO("Done..!!!");
                     }
-                    lock_guard<recursive_mutex> lock(m_EventMutex);
+                    lock_guard<recursive_mutex> lock(m_EventMutex); 
                     m_miracast_ctrler_obj = nullptr;
                     m_isServiceInitialized = false;
                     m_isServiceEnabled = false;
