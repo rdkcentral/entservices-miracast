@@ -18,12 +18,14 @@
  **/
 
 #include <string> 
+#include <utility>
 
 #include "MiracastPlayerImplementation.h"
 
 #include "UtilsJsonRpc.h"
 
 #include "UtilsSynchroIarm.hpp"
+#include <cctype>
 
 static std::vector<std::string> m_envArgs;
 
@@ -34,6 +36,36 @@ namespace WPEFramework
         SERVICE_REGISTRATION(MiracastPlayerImplementation, MIRACAST_PLAYER_API_VERSION_NUMBER_MAJOR, MIRACAST_PLAYER_API_VERSION_NUMBER_MINOR, MIRACAST_PLAYER_API_VERSION_NUMBER_PATCH);
         MiracastPlayerImplementation *MiracastPlayerImplementation::_instance = nullptr;
         MiracastRTSPMsg *MiracastPlayerImplementation::m_miracast_rtsp_obj = nullptr;
+
+        bool isValidEnvName(const std::string& name)
+        {
+            // Environment variable names must be alphanumeric or underscore
+            for (char c : name)
+            {
+                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+                {
+                    return false;
+                }
+            }
+            return !name.empty();
+        }
+
+        bool isValidEnvValue(const std::string& value)
+        {
+            // These values are only ever passed directly to setenv(), never to a shell,
+            // so shell metacharacters pose no injection risk here. Only reject embedded
+            // line breaks, which could otherwise be used to forge spurious log lines.
+            const char* dangerousChars[] = {"\n", "\r"};
+
+            for (const char* dangerous : dangerousChars)
+            {
+                if (value.find(dangerous) != std::string::npos)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
 
         MiracastPlayerImplementation::MiracastPlayerImplementation()
         : _adminLock()
@@ -380,14 +412,43 @@ namespace WPEFramework
         {
             std::string waylandDisplayName = "";
             bool isSuccessOrFailure = false;
+            result.success = false;
             if (westerosArgs)
             {
                 Exchange::IMiracastPlayer::EnvArguments entry{};
+                std::vector<std::pair<std::string, std::string>> validatedArgs;
 
+                // Validate the complete list before applying any entries, so that a
+                // later invalid entry cannot leave earlier ones already applied to
+                // the process environment.
                 while (westerosArgs->Next(entry) == true)
                 {
                     std::string argName = entry.argName;
                     std::string argValue = entry.argValue;
+
+                    // Validate environment variable name and value
+                    if (!isValidEnvName(argName))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
+                        result.message = "Invalid environment variable name";
+                        result.success = false;
+                        return Core::ERROR_NONE;
+                    }
+                    if (!isValidEnvValue(argValue))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
+                        result.message = "Invalid environment variable value";
+                        result.success = false;
+                        return Core::ERROR_NONE;
+                    }
+
+                    validatedArgs.emplace_back(std::move(argName), std::move(argValue));
+                }
+
+                for (const auto& validatedArg : validatedArgs)
+                {
+                    const std::string& argName = validatedArg.first;
+                    const std::string& argValue = validatedArg.second;
 
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
@@ -402,7 +463,7 @@ namespace WPEFramework
 
                     if ( "WAYLAND_DISPLAY" == argName )
                     {
-                        waylandDisplayName = std::move(argValue);
+                        waylandDisplayName = argValue;
                         MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                     }
 
@@ -420,13 +481,6 @@ namespace WPEFramework
                 if (!waylandDisplayName.empty())
                 {
                     MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
-                }
-
-                std::string waylandDisplayOverrideName = MiracastCommon::parse_opt_flag("/opt/miracast_custom_westeros_name");
-                if (!waylandDisplayOverrideName.empty())
-                {
-                    MIRACASTLOG_INFO("Wayland Display Name from Overrides: [%s]", waylandDisplayOverrideName.c_str());
-                    waylandDisplayName = std::move(waylandDisplayOverrideName);
                 }
 
                 if (!waylandDisplayName.empty())
@@ -466,14 +520,43 @@ namespace WPEFramework
         {
             std::string waylandDisplayName = "";
             bool isSuccessOrFailure = false;
+            result.success = false;
             if (envArgs)
             {
                 Exchange::IMiracastPlayer::EnvArguments entry{};
+                std::vector<std::pair<std::string, std::string>> validatedArgs;
 
+                // Validate the complete list before applying any entries, so that a
+                // later invalid entry cannot leave earlier ones already applied to
+                // the process environment.
                 while (envArgs->Next(entry) == true)
                 {
                     std::string argName = entry.argName;
                     std::string argValue = entry.argValue;
+
+                    // Validate environment variable name and value
+                    if (!isValidEnvName(argName))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable name: %s", argName.c_str());
+                        result.message = "Invalid environment variable name";
+                        result.success = false;
+                        return Core::ERROR_NONE;
+                    }
+                    if (!isValidEnvValue(argValue))
+                    {
+                        MIRACASTLOG_ERROR("Invalid environment variable value: %s", argValue.c_str());
+                        result.message = "Invalid environment variable value";
+                        result.success = false;
+                        return Core::ERROR_NONE;
+                    }
+
+                    validatedArgs.emplace_back(std::move(argName), std::move(argValue));
+                }
+
+                for (const auto& validatedArg : validatedArgs)
+                {
+                    const std::string& argName = validatedArg.first;
+                    const std::string& argValue = validatedArg.second;
 
                     m_envArgs.push_back(argName);
                     MIRACASTLOG_INFO("Configuring environment variable: %s=%s", argName.c_str(), argValue.c_str());
@@ -488,7 +571,7 @@ namespace WPEFramework
 
                     if ( "WAYLAND_DISPLAY" == argName )
                     {
-                        waylandDisplayName = std::move(argValue);
+                        waylandDisplayName = argValue;
                         MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
                     }
 
@@ -506,13 +589,6 @@ namespace WPEFramework
                 if (!waylandDisplayName.empty())
                 {
                     MIRACASTLOG_INFO("Wayland Display Name from App: [%s]", waylandDisplayName.c_str());
-                }
-
-                std::string waylandDisplayOverrideName = MiracastCommon::parse_opt_flag("/opt/miracast_custom_westeros_name");
-                if (!waylandDisplayOverrideName.empty())
-                {
-                    MIRACASTLOG_INFO("Wayland Display Name from Overrides: [%s]", waylandDisplayOverrideName.c_str());
-                    waylandDisplayName = std::move(waylandDisplayOverrideName);
                 }
 
                 if (!waylandDisplayName.empty())
@@ -558,22 +634,7 @@ namespace WPEFramework
 
             auto tupleParam = std::make_tuple(client_mac,client_name,player_state,reason_code);
 
-            if (0 == access("/opt/miracast_autoconnect", F_OK))
-            {
-                char commandBuffer[768] = {0};
-                snprintf( commandBuffer,
-                        sizeof(commandBuffer),
-                        "curl -H \"Authorization: Bearer `WPEFrameworkSecurityUtility | cut -d '\"' -f 4`\" --header \"Content-Type: application/json\" --request POST --data '{\"jsonrpc\":\"2.0\", \"id\":3,\"method\":\"org.rdk.MiracastService.1.updatePlayerState\", \"params\":{\"mac\": \"%s\",\"state\": \"%s\",\"reason_code\": %s}}' http://127.0.0.1:9998/jsonrpc &",
-                        client_mac.c_str(),
-                        stateDescription(player_state).c_str(),
-                        std::to_string(reason_code).c_str());
-                MIRACASTLOG_INFO("System Command [%s]",commandBuffer);
-                MiracastCommon::execute_SystemCommand( commandBuffer );
-            }
-            else
-            {
-                dispatchEvent(MIRACASTPLAYER_EVENT_ON_STATE_CHANGE, tupleParam);
-            }
+            dispatchEvent(MIRACASTPLAYER_EVENT_ON_STATE_CHANGE, tupleParam);
 
             if ( WPEFramework::Exchange::IMiracastPlayer::STATE_STOPPED == player_state )
             {
