@@ -34,6 +34,9 @@
 #include <fstream>
 #include <ifaddrs.h>
 #include <netdb.h>
+#include <mutex>
+#include <condition_variable>
+#include <cstdint>
 #include <MiracastCommon.h>
 #include "MiracastP2P.h"
 #include "MiracastLogger.h"
@@ -117,6 +120,8 @@ public:
     void start_discoveryAsync(void);
     void stop_discoveryAsync(void);
     void restart_discoveryAsync(void);
+    /* Posts a stop-discovery request and waits until the controller thread has torn down the P2P session. */
+    bool stop_discoveryAndWait(uint32_t timeout_ms);
 
 private:
     static MiracastController *m_miracast_ctrl_obj;
@@ -160,6 +165,11 @@ private:
 
     MiracastThread *m_controller_thread;
     int m_tcpserverSockfd;
+
+    std::mutex m_stop_discovery_mutex;
+    std::condition_variable m_stop_discovery_cv;
+    uint64_t m_stop_discovery_posted{0};
+    uint64_t m_stop_discovery_processed{0};
     eCONTROLLER_FW_STATES convertP2PtoSessionActions(P2P_EVENTS eventId);
     std::string start_DHCPServer(std::string interface);
 };
