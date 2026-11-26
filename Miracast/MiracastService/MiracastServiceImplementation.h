@@ -120,7 +120,7 @@ namespace Thunder
                         /* coverity[pass_by_value : FALSE] */
                         static Core::ProxyType<Core::IDispatch> Create(MiracastServiceImplementation *miracastServiceImplementation, Event event, JsonObject params)
                         {
-        #if defined(THUNDER_VERSION) && (THUNDER_VERSION <= 4)
+        #if defined(THUNDER_VERSION) && ((THUNDER_VERSION < 4) || ((THUNDER_VERSION == 4) && (THUNDER_VERSION_MINOR < 4)))
                             return (Core::proxy_cast<Core::IDispatch>(Core::ProxyType<Job>::Create(miracastServiceImplementation, event, params)));
         #else
                             return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<Job>::Create(miracastServiceImplementation, event, params)));
